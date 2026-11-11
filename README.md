@@ -143,6 +143,18 @@ GFW 数据是 **AIS 推断的 apparent fishing hours**，不是分物种渔获�
 
 报告按次序下载，满足一个账号一次报告的 API 限制。网关超时后通过 `last-report` 查询并取回同一份报告，不重复提交。进度保存在本地；中断后继续同一命令即可恢复。此 token 不应同时在其他程序或网页提交报告。
 
+每份响应还会核对 ZIP 内的日期、数据版本、分辨率与 RFMO 几何标识，避免把另一份报告登记为本次结果。读取和清洗已有文件不需要 token：
+
+```python
+from tuna_data.cleaning import gfw_hours
+
+catalog = db.catalog()
+gfw_id = catalog.loc[catalog["id"].str.startswith("gfw/iotc_2024-"), "id"].iloc[-1]
+member = next(name for name in db.members(gfw_id) if name.endswith(".csv"))
+hours = gfw_hours(db.read_table(gfw_id, member=member))
+# lat / lon / fishing_hours 已转换为数值，其余原始代码保留
+```
+
 ## R 调用
 
 ```r

@@ -190,3 +190,50 @@ def test_gfw_refuses_other_report(tmp_path):
             return Response()
     with pytest.raises(RuntimeError, match="different query"):
         recover(HTTP(), "synthetic-test-token", {"region-id": "ICCAT"}, tmp_path / "pending.json", wait_seconds=0)
+
+
+def test_gfw_completed_zip_must_match_query(tmp_path):
+    from tuna_data.gfw import validate_report
+    params = {"date-range": "2020-01-01,2021-01-01", "datasets[0]": "public-global-fishing-effort:v5.0",
+              "region-id": "IOTC", "group-by": "FLAGANDGEARTYPE", "temporal-resolution": "MONTHLY",
+              "spatial-resolution": "LOW", "spatial-aggregation": "false"}
+    path = tmp_path / "response.zip"
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("readme.md", "API Dataset versions: public-global-fishing-effort:v5.0\n"
+                   "Filters: timestamp >= parseDateTimeBestEffort('2020-01-01') and timestamp < parseDateTimeBestEffort('2021-01-01')\n"
+                   "Group by: flagAndGearType\nTemporal resolution: monthly\nSpatial aggregation: false\nResolution: low")
+        z.writestr("geometry.geojson", json.dumps({"features": [{"id": "IOTC"}]}))
+    validate_report(path, params)
+    with pytest.raises(ValueError, match="dates/version/resolution"):
+        validate_report(path, dict(params, **{"date-range": "2021-01-01,2022-01-01"}))
+    with pytest.raises(ValueError, match="RFMO"):
+        validate_report(path, dict(params, **{"region-id": "ICCAT"}))
+
+
+def test_gfw_resume_finishes_pending_before_new_date_range(tmp_path, monkeypatch):
+    from tuna_data import gfw
+    request = {"date-range": "2020-01-01,2021-01-01", "datasets[0]": "public-global-fishing-effort:v5.0",
+               "region-id": "ICCAT", "group-by": "FLAGANDGEARTYPE", "temporal-resolution": "MONTHLY",
+               "spatial-resolution": "LOW", "spatial-aggregation": "false"}
+    pending = tmp_path / "gfw_pending_report.json"
+    pending.write_text(json.dumps({"request": request}))
+    class Response:
+        def raise_for_status(self):
+            pass
+        def json(self):
+            return {"id": "public-global-fishing-effort:v5.0", "startDate": "2012-01-01", "endDate": "2026-11-08"}
+    class HTTP:
+        def get(self, *args, **kwargs):
+            return Response()
+    calls = []
+    data = tmp_path / "synthetic.zip"
+    data.write_bytes(b"synthetic")
+    def report(rfmo, start, end, **kwargs):
+        calls.append((rfmo, start, end))
+        pending.unlink(missing_ok=True)
+        return data
+    monkeypatch.setattr(gfw, "get_token", lambda: "synthetic-test-token")
+    monkeypatch.setattr(gfw, "session", HTTP)
+    monkeypatch.setattr(gfw, "report", report)
+    gfw.sync(library=Library(tmp_path), rfmos=["IATTC"], start_year=2026, progress=lambda _: None)
+    assert calls == [("ICCAT", "2020-01-01", "2021-01-01"), ("IATTC", "2026-01-01", "2026-11-09")]

@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import time
+import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import parse_qs, urlparse
@@ -94,11 +95,35 @@ def report(rfmo, start, end, *, library=None, token=None, dataset="public-global
                     for chunk in response.iter_content(1024 * 1024):
                         f.write(chunk)
                 validate_download(path, response.headers.get("Content-Type", ""))
+                validate_report(path, params)
                 saved = lib.import_file(path, identifier, source_url=API + "/4wings/report",
                                         title=f"GFW apparent fishing hours in {rfmo}",
                                         provenance={"request": params, "measurement": "apparent_fishing_hours"})
                 pending.unlink(missing_ok=True)
                 return saved
+
+
+def validate_report(path, params):
+    """Confirm the returned ZIP belongs to this query, including on recovery."""
+    with zipfile.ZipFile(path) as archive:
+        notes = "\n".join(archive.read(n).decode("utf-8") for n in archive.namelist() if n.endswith(".md"))
+        geometries = [json.loads(archive.read(n)) for n in archive.namelist() if n.endswith(".geojson")]
+    start, end = params["date-range"].split(",")
+    expected = [
+        f"timestamp >= parseDateTimeBestEffort('{start}')",
+        f"timestamp < parseDateTimeBestEffort('{end}')",
+        f"Group by: {params['group-by']}",
+        f"Temporal resolution: {params['temporal-resolution']}",
+        f"Spatial aggregation: {params['spatial-aggregation']}",
+        f"Resolution: {params['spatial-resolution']}",
+    ]
+    if not params["datasets[0]"].endswith(":latest"):
+        expected.append("API Dataset versions: " + params["datasets[0]"])
+    if any(text.lower() not in notes.lower() for text in expected):
+        raise ValueError("GFW response metadata does not match the requested dates/version/resolution")
+    regions = {str(feature.get("id")) for geometry in geometries for feature in geometry.get("features", [])}
+    if regions != {params["region-id"]}:
+        raise ValueError("GFW response geometry does not match the requested RFMO")
 
 
 def recover(http, token, params, pending, *, wait_seconds=30, max_wait=1800):
@@ -151,6 +176,19 @@ def sync(*, library=None, rfmos=("IATTC", "ICCAT", "IOTC", "WCPFC", "CCSBT"), st
               "resolution": "0.1 degree, MONTHLY, FLAGANDGEARTYPE", "completed": [], "errors": []}
     lib.root.mkdir(parents=True, exist_ok=True)
     atomic_json(lib.root / "gfw_dataset.json", metadata)
+    pending = lib.root / "gfw_pending_report.json"
+    if pending.exists():
+        # Finish the saved job first, even if the available end date or selected
+        # RFMO list changed since the interruption.
+        request = json.loads(pending.read_text())["request"]
+        begin, finish = request["date-range"].split(",")
+        progress(f"Recovering pending GFW {request['region-id']} {begin} to {finish}")
+        report(request["region-id"], begin, finish, library=lib, token=token,
+               dataset=request["datasets[0]"], group_by=request["group-by"],
+               temporal_resolution=request["temporal-resolution"],
+               spatial_resolution=request["spatial-resolution"],
+               spatial_aggregation=request["spatial-aggregation"] == "true",
+               filters=request.get("filters[0]"), update=True)
     for rfmo in rfmos:
         for year in range(start_year, stop.year + 1):
             begin, finish = date(year, 1, 1), min(date(year + 1, 1, 1), stop)

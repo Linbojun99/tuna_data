@@ -18,6 +18,8 @@ from .config import data_home
 from .sources import Product, discover, session, stable_id, open_download
 from .storage import atomic_json, checksum, contained, utc_now
 
+METADATA_FILES = ("gfw_dataset.json", "gfw_sync_status.json", "last_update.json")
+
 
 class Library:
     """A portable, content-addressed data directory, independent of source code.
@@ -235,13 +237,41 @@ class Library:
         other = Library(destination)
         if other.root.resolve() == self.root.resolve():
             return other
-        for dataset, entry in self._manifest()["datasets"].items():
+        source_manifest = self._manifest()
+        other.root.mkdir(parents=True, exist_ok=True)
+        for dataset, entry in source_manifest["datasets"].items():
             for record in [*entry["history"], entry["current"]]:
                 source = contained(self.root, record["path"])
                 if checksum(source) != record["sha256"]:
                     raise ValueError(f"Checksum mismatch before mirror: {dataset}")
-                other.import_file(source, dataset, source_url=record["source_url"], title=record["title"],
-                                  provenance={**record.get("provenance", {}), "original_retrieved_at": record["retrieved_at"]})
+                target = contained(other.root, record["path"])
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if not target.is_file() or checksum(target) != record["sha256"]:
+                    with NamedTemporaryFile(dir=target.parent, delete=False) as temp:
+                        temporary = Path(temp.name)
+                    try:
+                        shutil.copyfile(source, temporary)
+                        if checksum(temporary) != record["sha256"]:
+                            raise ValueError(f"Checksum mismatch during mirror: {dataset}")
+                        os.replace(temporary, target)
+                    finally:
+                        temporary.unlink(missing_ok=True)
+        # Publish a merged catalogue only after every referenced file is complete.
+        # Deduplicate history by hash; repeated mirrors must be idempotent.
+        with FileLock(str(other.root / ".manifest.lock"), timeout=120):
+            merged = other._manifest()
+            for dataset, entry in source_manifest["datasets"].items():
+                old = merged["datasets"].get(dataset)
+                versions = [*old["history"], old["current"]] if old else []
+                versions += entry["history"]
+                history = {r["sha256"]: r for r in versions if r["sha256"] != entry["current"]["sha256"]}
+                merged["datasets"][dataset] = {"current": entry["current"], "history": list(history.values())}
+            merged["updated_at"] = utc_now()
+            atomic_json(other.root / "manifest.json", merged)
+            for name in METADATA_FILES:
+                metadata = self.root / name
+                if metadata.is_file():
+                    atomic_json(other.root / name, json.loads(metadata.read_text(encoding="utf-8")))
         return other
 
 

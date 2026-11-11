@@ -8,7 +8,7 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 import shutil
 import zipfile
 
-from .library import Library
+from .library import Library, METADATA_FILES
 from .storage import checksum, contained
 
 
@@ -33,6 +33,10 @@ def backup(library: Library, destination):
                 if checksum(source) != expected:
                     raise ValueError(f"Checksum mismatch: {relative}")
                 archive.write(source, relative)
+            for name in METADATA_FILES:
+                path = library.root / name
+                if path.is_file():
+                    archive.writestr(name, json.dumps(json.loads(path.read_text(encoding="utf-8"))))
         os.replace(temp, destination)
     finally:
         temp.unlink(missing_ok=True)
@@ -60,5 +64,8 @@ def restore(snapshot, destination):
                 if checksum(path) != digest:
                     raise ValueError(f"Snapshot checksum mismatch: {relative}")
             (staging / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            for name in METADATA_FILES:
+                if name in archive.namelist():
+                    (staging / name).write_text(json.dumps(json.loads(archive.read(name))), encoding="utf-8")
         Library(staging).mirror(target.root)
     return target

@@ -21,11 +21,15 @@ def test_portable_snapshots_and_tamper_detection(tmp_path):
     old = lib.record("iotc/test")["sha256"]
     src.write_text("flag,value\n003,12\n")
     lib.import_file(src, "iotc/test")
+    (lib.root / "gfw_dataset.json").write_text('{"id": "synthetic-version"}')
+    (lib.root / "gfw_pending_report.json").write_text('{"request": "in-progress"}')
     assert lib.read_table("iotc/test", version=old).iloc[0].tolist() == ["001", "NA"]
     snapshot = backup(lib, tmp_path / "private.zip")
     moved = restore(snapshot, tmp_path / "NAS")
     assert moved.read_table("iotc/test").iloc[0].tolist() == ["003", "12"]
     assert moved.read_table("iotc/test", version=old).iloc[1].tolist() == ["002", "0"]
+    assert json.loads((moved.root / "gfw_dataset.json").read_text())["id"] == "synthetic-version"
+    assert not (moved.root / "gfw_pending_report.json").exists()
     moved.path("iotc/test").write_text("corrupt")
     with pytest.raises(ValueError, match="Checksum"):
         moved.read_table("iotc/test")
@@ -82,6 +86,10 @@ def test_root_priority(tmp_path, monkeypatch):
     monkeypatch.setenv("TUNA_DATA_HOME", "/test/env")
     assert str(data_home()) == "/test/env"
     assert str(data_home("/test/argument")) == "/test/argument"
+    monkeypatch.delenv("TUNA_DATA_HOME")
+    config.write_text('[storage]\nroot="relative-library"\n')
+    monkeypatch.chdir(tmp_path.parent)
+    assert data_home() == tmp_path / "relative-library"
 
 
 class FakeResponse:
@@ -119,9 +127,66 @@ def test_mirror_preserves_other_datasets(tmp_path):
     assert set(b.catalog()["id"]) == {"iotc/new", "iccat/existing"}
 
 
+def test_repeated_mirror_does_not_duplicate_history(tmp_path):
+    source = tmp_path / "a.csv"
+    a, b = Library(tmp_path / "a"), Library(tmp_path / "b")
+    source.write_text("x\n1\n")
+    a.import_file(source, "iotc/data")
+    source.write_text("x\n2\n")
+    a.import_file(source, "iotc/data")
+    a.mirror(b.root)
+    a.mirror(b.root)
+    assert len(b._manifest()["datasets"]["iotc/data"]["history"]) == 1
+    assert b.record("iotc/data") == a.record("iotc/data")
+
+
 def test_gfw_without_token_does_not_download(tmp_path, monkeypatch):
     from tuna_data.gfw import report
     monkeypatch.delenv("GFW_TOKEN", raising=False)
     monkeypatch.setenv("GFW_TOKEN_FILE", str(tmp_path / "missing-token"))
     with pytest.raises(ValueError, match="GFW_TOKEN"):
         report("WCPFC", "2024-01-01", "2024-02-01", library=Library(tmp_path))
+
+
+def test_gfw_recovers_same_query_without_resubmitting(tmp_path):
+    from tuna_data.gfw import recover
+    from urllib.parse import urlencode
+    params = {"region-id": "ICCAT", "date-range": "2018-01-01,2019-01-01"}
+    class Response:
+        status_code = 200
+        def __init__(self, running):
+            self.headers = {"Content-Type": "application/json" if running else "application/zip"}
+        def raise_for_status(self):
+            pass
+        def close(self):
+            pass
+        def json(self):
+            return {"status": "running", "uri": "/v3/4wings/report?" + urlencode(params)}
+    class HTTP:
+        calls = []
+        def get(self, url, **kwargs):
+            self.calls.append(url)
+            return Response(len(self.calls) == 1)
+    http = HTTP()
+    result = recover(http, "synthetic-test-token", params, tmp_path / "pending.json", wait_seconds=0)
+    assert result.headers["Content-Type"] == "application/zip"
+    assert len(http.calls) == 2
+    assert all(url.endswith("/last-report") for url in http.calls)
+
+
+def test_gfw_refuses_other_report(tmp_path):
+    from tuna_data.gfw import recover
+    class Response:
+        status_code = 200
+        headers = {"Content-Type": "application/json"}
+        def raise_for_status(self):
+            pass
+        def close(self):
+            pass
+        def json(self):
+            return {"status": "running", "uri": "/v3/4wings/report?region-id=WCPFC"}
+    class HTTP:
+        def get(self, *args, **kwargs):
+            return Response()
+    with pytest.raises(RuntimeError, match="different query"):
+        recover(HTTP(), "synthetic-test-token", {"region-id": "ICCAT"}, tmp_path / "pending.json", wait_seconds=0)

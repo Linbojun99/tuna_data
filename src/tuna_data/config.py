@@ -19,5 +19,11 @@ def settings() -> dict:
 
 def data_home(root=None) -> Path:
     cfg = settings()
-    selected = root or os.environ.get("TUNA_DATA_HOME") or cfg.get("storage", {}).get("root")
-    return Path(selected or Path.home() / ".local/share/tuna-data").expanduser().absolute()
+    selected = root or os.environ.get("TUNA_DATA_HOME")
+    if selected:
+        return Path(selected).expanduser().absolute()
+    configured = cfg.get("storage", {}).get("root")
+    if configured:
+        path = Path(configured).expanduser()
+        return (path if path.is_absolute() else config_path().absolute().parent / path).absolute()
+    return Path.home() / ".local/share/tuna-data"

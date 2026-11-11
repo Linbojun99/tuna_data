@@ -141,7 +141,7 @@ tuna-data gfw WCPFC 2024-01-01 2024-02-01
 
 GFW 数据是 **AIS 推断的 apparent fishing hours**，不是分物种渔获吨数；RFMO 区域内的所有捕鱼活动也不全是金枪鱼作业。原始响应 ZIP、区域几何和 GFW 附带说明一起保存。空间重叠的 RFMO 报告不能直接相加。官方文档：[4Wings reports](https://api-doc.globalfishingwatch.org/our-apis/documentation/docs/v3/4wings/report)。
 
-报告按次序下载，满足一个账号一次报告的 API 限制。若服务器仍在运行或返回超时，命令停止并记录进度，避免连续提交冲突请求；稍后继续同一命令即可复用已完成分区。
+报告按次序下载，满足一个账号一次报告的 API 限制。网关超时后通过 `last-report` 查询并取回同一份报告，不重复提交。进度保存在本地；中断后继续同一命令即可恢复。此 token 不应同时在其他程序或网页提交报告。
 
 ## R 调用
 

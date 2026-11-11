@@ -8,6 +8,10 @@ import os
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from urllib.parse import parse_qs, urlparse
+
+import requests
+from filelock import FileLock
 
 from .library import Library, validate_download
 from .sources import session
@@ -58,20 +62,69 @@ def report(rfmo, start, end, *, library=None, token=None, dataset="public-global
     # No retry for report creation: a timeout can mean the server is still working.
     from requests.adapters import HTTPAdapter
     http.mount("https://", HTTPAdapter(max_retries=0))
-    with http.get(API + "/4wings/report", params=params, headers={"Authorization": f"Bearer {token}"},
-                  stream=True, timeout=(20, 180)) as response:
-        if response.status_code in {429, 524}:
-            raise RuntimeError(f"GFW HTTP {response.status_code}: another report may be running. Wait or recover it via /4wings/last-report; no duplicate report was submitted.")
+    lib.root.mkdir(parents=True, exist_ok=True)
+    pending = lib.root / "gfw_pending_report.json"
+    with FileLock(str(lib.root / ".gfw-report.lock"), timeout=1):
+        if pending.exists():
+            state = json.loads(pending.read_text())
+            if state["request"] != params:
+                raise RuntimeError("A different GFW query is pending; finish it before submitting another")
+            response = recover(http, token, params, pending)
+        else:
+            atomic_json(pending, {"request": params, "dataset_id": identifier, "submitted_at": utc_now()})
+            try:
+                response = http.get(API + "/4wings/report", params=params, headers={"Authorization": f"Bearer {token}"},
+                                    stream=True, timeout=(20, 180))
+            except requests.Timeout:
+                response = recover(http, token, params, pending)
+            if response.status_code == 524:
+                response.close()
+                response = recover(http, token, params, pending)
+            elif response.status_code == 429:
+                response.close()
+                pending.unlink(missing_ok=True)
+                raise RuntimeError("GFW is processing another report for this token; no replacement query was submitted")
+        with response:
+            if response.status_code >= 400:
+                pending.unlink(missing_ok=True)
+            response.raise_for_status()
+            with TemporaryDirectory() as temp:
+                path = Path(temp) / f"{identifier.split('/')[1]}.zip"
+                with path.open("wb") as f:
+                    for chunk in response.iter_content(1024 * 1024):
+                        f.write(chunk)
+                validate_download(path, response.headers.get("Content-Type", ""))
+                saved = lib.import_file(path, identifier, source_url=API + "/4wings/report",
+                                        title=f"GFW apparent fishing hours in {rfmo}",
+                                        provenance={"request": params, "measurement": "apparent_fishing_hours"})
+                pending.unlink(missing_ok=True)
+                return saved
+
+
+def recover(http, token, params, pending, *, wait_seconds=30, max_wait=1800):
+    """Recover our timed-out report instead of submitting another job."""
+    deadline = time.monotonic() + max_wait
+    while time.monotonic() < deadline:
+        response = http.get(API + "/4wings/last-report", headers={"Authorization": f"Bearer {token}"},
+                            stream=True, timeout=(20, 180))
+        if response.status_code == 404:
+            response.close()
+            pending.unlink(missing_ok=True)
+            raise RuntimeError("GFW recovery window expired; rerun the same command to submit this missing partition")
         response.raise_for_status()
-        with TemporaryDirectory() as temp:
-            path = Path(temp) / f"{identifier.split('/')[1]}.zip"
-            with path.open("wb") as f:
-                for chunk in response.iter_content(1024 * 1024):
-                    f.write(chunk)
-            validate_download(path, response.headers.get("Content-Type", ""))
-            return lib.import_file(path, identifier, source_url=API + "/4wings/report",
-                                   title=f"GFW apparent fishing hours in {rfmo}",
-                                   provenance={"request": params, "measurement": "apparent_fishing_hours"})
+        if "json" not in response.headers.get("Content-Type", "").lower():
+            return response
+        status = response.json()
+        response.close()
+        if status.get("status") != "running":
+            pending.unlink(missing_ok=True)
+            raise RuntimeError(f"GFW report failed: {status}")
+        active = {key: values[0] for key, values in parse_qs(urlparse(status["uri"]).query).items()}
+        if any(active.get(key) != value for key, value in params.items()):
+            raise RuntimeError("GFW last-report belongs to a different query; refusing to mislabel its data")
+        atomic_json(pending, {"request": params, "status": "running", "checked_at": utc_now()})
+        time.sleep(wait_seconds)
+    raise TimeoutError("GFW report is still running; progress is saved. Resume the same command.")
 
 
 def sync(*, library=None, rfmos=("IATTC", "ICCAT", "IOTC", "WCPFC", "CCSBT"), start_year=2012,

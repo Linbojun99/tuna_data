@@ -1,0 +1,10 @@
+# Copy to ~/.config/tuna-data/config.toml, or set TUNA_DATA_CONFIG.
+# Never commit personal paths, private Drive folder IDs or access tokens.
+[storage]
+root = "~/tuna-library"
+
+# Examples of alternative roots (choose one):
+# root = "/Volumes/NAS/research/tuna-library"
+# root = "Z:/research/tuna-library"
+# root = "/mnt/lab-nas/tuna-library"
+# root = "~/Google Drive/My Drive/tuna-data-library/library"

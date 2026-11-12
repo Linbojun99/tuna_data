@@ -298,6 +298,35 @@ source("/你的代码目录/tuna_data/examples/r_plot_catch_and_gfw.R")
 
 IATTC 源文件中的 0 表示低于 0.5 吨，年度图未对历史统计口径变化作校正。GFW 图展示所有渔具的 AIS 推断捕鱼活动，不是金枪鱼渔获量；色标为每个展示网格的时数总和，未按面积标准化。未记录网格留空，不能据此认定没有捕鱼。方法依据随数据保存的说明、[GFW 活动数据说明](https://globalfishingwatch.org/dataset-and-code-fishing-activity/)及 [4Wings 报告文档](https://api-doc.globalfishingwatch.org/our-apis/documentation/docs/v3/4wings/report)。
 
+## R 绘图示例：合并后的全球与太平洋黄鳍渔获
+
+[examples/r_plot_merged_yft.R](examples/r_plot_merged_yft.R) 读取同一次清洗结果的 `global_catch` 和 `pacific_catch`，生成两张按捕捞方式区分、不同统计口径分开展示的年度趋势图。
+
+```r
+# 已完成 examples/r_clean_merge.R 后运行；不重新下载或构建数据。
+install.packages(c("ggplot2", "patchwork", "ragg", "svglite", "systemfonts", "jsonlite", "scales")) # 首次需要
+source("/你的代码目录/tuna_data/examples/r_plot_merged_yft.R")
+```
+
+默认只画两个范围的预期来源都有记录的共同期间：当前为 **1950–2024 年**。2025 年仍保存在导出数据中，因为 ICCAT/WCPFC 尚无该年记录，默认不画出其不完整总量。脚本固定一个输入运行目录、核对输入校验值，跨年份缺值时断线，不补零、不平滑，也不把不同统计口径加在一起。
+
+- 全球图：保留渔获（EPO + Indian）、WCPFC 年鉴值（WCPO）、ICCAT 登陆量（Atlantic）、ICCAT 原生 LF 类型及报告的死亡丢弃量分别展示。面板标明实际海域；它们不是各自覆盖全球的总量。
+- 太平洋图：东太平洋保留渔获与西中太平洋年鉴值分开展示。WCPFC 曲线在两张图中相同。
+- 六种主要渔具单列；其他已报告类别（包括混合渔具）归为 `Other reported gears`，`unknown` 和 `unmapped:*` 归为 `Unclassified codes`。展示分组只影响图，完整细分类另存 CSV。
+- 所有面板都是线性纵轴，单位为千吨，各面板纵轴范围独立。使用英文标注、白底细线和固定色觉友好配色。
+
+输出默认放在私有 `reports/figures/merged_yft/`，包括 600 dpi PNG、180 dpi 预览 PNG、可编辑 SVG、完整分渔具年度表、展示分组表、分组对照、来源覆盖和绘图版本记录。R 中保留 `p_global_yft`、`p_pacific_yft`、`annual_full_gears`、`annual_display` 和 `plot_data`，可继续修改。
+
+```r
+# 可选：固定某次合并结果、改输出位置或展示期间。
+Sys.setenv(TUNA_YFT_RUN = "/完整运行目录/Annual_catch_...",
+           TUNA_YFT_OUT = "/你的图片目录",
+           TUNA_YFT_START = "1980", TUNA_YFT_END = "2024")
+source("/你的代码目录/tuna_data/examples/r_plot_merged_yft.R")
+# 不设置 TUNA_YFT_RUN 时，按 TUNA_DATA_HOME / 本机配置定位最新成功结果。
+# 选择更晚年份也不会补全缺失来源；来源不足的年份留空。
+```
+
 ## 私有云、NAS、迁移与完整备份
 
 `raw/` 使用可读名称，例如 `raw/gfw/GFW_IOTC_Fishing_hours_2024_MONTHLY_0.1deg_v5.0__<版本校验值>/GFW_IOTC_Fishing_hours_2024_MONTHLY_0.1deg_v5.0.zip`。目录末尾保留 12 位校验值以区分数据版本；完整 SHA-256、来源文件名和请求参数仍保存在 `manifest.json`。新下载或导入的文件自动沿用此命名方式，已有数据集 ID 及 R/Python 调用方式保持稳定。

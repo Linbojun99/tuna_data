@@ -1,0 +1,40 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="625" viewBox="0 0 1200 625" role="img" aria-labelledby="title desc">
+  <title id="title">Move the complete library, then change its path</title>
+  <desc id="desc">Clone the code separately. Keep the library directory and all its subdirectories together. Documentation schematic; no research data.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 8 4 L 0 8 Z" fill="#0072B2" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1200" height="625" rx="0" fill="#FFFFFF" stroke="none" stroke-width="1.3" />
+  <rect x="0.75" y="0.75" width="1198.5" height="623.5" rx="16" fill="none" stroke="#D8E2E8" stroke-width="1.3" />
+  <text x="40" y="43" fill="#0072B2" font-size="15" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="start">05  /  TUNA-DATA FIELD GUIDE</text>
+  <text x="40" y="91" fill="#19384A" font-size="30" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="start">Move the complete library, then change its path</text>
+  <text x="40" y="126" fill="#5B707C" font-size="19" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="start">Clone the code separately. Keep the library directory and all its subdirectories together.</text>
+  <rect x="40" y="180" width="430" height="307" rx="12" fill="#FFFFFF" stroke="#D8E2E8" stroke-width="1.3" />
+  <text x="64" y="219" fill="#19384A" font-size="24" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="start">Existing data location</text>
+  <line x1="64" y1="240" x2="446" y2="240" stroke="#D8E2E8" stroke-width="1.4" />
+  <text x="65" y="277" fill="#0072B2" font-size="23" font-family="Menlo, Consolas, monospace" font-weight="bold" text-anchor="start">library/</text>
+  <text x="88" y="317" fill="#19384A" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">manifest.json</text>
+  <text x="88" y="352" fill="#19384A" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">raw/</text>
+  <text x="88" y="387" fill="#19384A" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">processed/annual/</text>
+  <text x="88" y="422" fill="#19384A" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">processed/spatial/</text>
+  <text x="88" y="457" fill="#19384A" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">figures/  (optional)</text>
+  <rect x="730" y="180" width="430" height="307" rx="12" fill="#FFFFFF" stroke="#D8E2E8" stroke-width="1.3" />
+  <text x="754" y="219" fill="#19384A" font-size="24" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="start">New computer / NAS</text>
+  <line x1="754" y1="240" x2="1136" y2="240" stroke="#D8E2E8" stroke-width="1.4" />
+  <text x="755" y="277" fill="#0072B2" font-size="23" font-family="Menlo, Consolas, monospace" font-weight="bold" text-anchor="start">library/</text>
+  <text x="778" y="317" fill="#19384A" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">manifest.json</text>
+  <text x="778" y="352" fill="#19384A" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">raw/</text>
+  <text x="778" y="387" fill="#19384A" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">processed/annual/</text>
+  <text x="778" y="422" fill="#19384A" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">processed/spatial/</text>
+  <text x="778" y="457" fill="#19384A" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">figures/  (optional)</text>
+  <text x="600" y="284" fill="#0072B2" font-size="20" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="middle">Copy complete folder</text>
+  <line x1="489" y1="320" x2="711" y2="320" stroke="#0072B2" stroke-width="2" marker-end="url(#arrow)" />
+  <text x="600" y="359" fill="#5B707C" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="middle">Keep version files</text>
+  <text x="600" y="387" fill="#5B707C" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="middle">and year partitions</text>
+  <rect x="40" y="515" width="1120" height="56" rx="8" fill="#EEF8F5" stroke="none" stroke-width="1.3" />
+  <text x="64" y="550" fill="#007F78" font-size="21" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">Sys.setenv(TUNA_DATA_HOME = "/mounted/path/library")</text>
+  <text x="40" y="605" fill="#5B707C" font-size="17" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="start">mirror() and backup() cover the raw library; copy processed/ and figures/ separately.</text>
+</svg>

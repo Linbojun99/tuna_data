@@ -1,0 +1,51 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="565" viewBox="0 0 1200 565" role="img" aria-labelledby="title desc">
+  <title id="title">Choose the layer that matches your question</title>
+  <desc id="desc">Raw archives, annual summaries and spatial records are separate products. Documentation schematic; no research data.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 8 4 L 0 8 Z" fill="#0072B2" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1200" height="565" rx="0" fill="#FFFFFF" stroke="none" stroke-width="1.3" />
+  <rect x="0.75" y="0.75" width="1198.5" height="563.5" rx="16" fill="none" stroke="#D8E2E8" stroke-width="1.3" />
+  <text x="40" y="43" fill="#0072B2" font-size="15" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="start">02  /  TUNA-DATA FIELD GUIDE</text>
+  <text x="40" y="91" fill="#19384A" font-size="30" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="start">Choose the layer that matches your question</text>
+  <text x="40" y="126" fill="#5B707C" font-size="19" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="start">Raw archives, annual summaries and spatial records are separate products.</text>
+  <rect x="40" y="172" width="330" height="288" rx="12" fill="#FFFFFF" stroke="#D8E2E8" stroke-width="1.3" />
+  <text x="64" y="211" fill="#19384A" font-size="24" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="start">Source files</text>
+  <line x1="64" y1="232" x2="346" y2="232" stroke="#D8E2E8" stroke-width="1.4" />
+  <text x="64" y="271" fill="#007F78" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">tuna_read()</text>
+  <text x="64" y="314" fill="#19384A" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="start">Original fields and units</text>
+  <text x="64" y="344" fill="#19384A" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="start">Explicit ZIP member / sheet</text>
+  <rect x="58" y="366" width="294" height="76" rx="7" fill="#F2F6F9" stroke="none" stroke-width="1.3" />
+  <text x="70" y="394" fill="#0072B2" font-size="17" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">raw/</text>
+  <text x="70" y="423" fill="#0072B2" font-size="17" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">manifest.json</text>
+  <rect x="435" y="172" width="330" height="288" rx="12" fill="#FFFFFF" stroke="#D8E2E8" stroke-width="1.3" />
+  <text x="459" y="211" fill="#19384A" font-size="24" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="start">Annual catch</text>
+  <line x1="459" y1="232" x2="741" y2="232" stroke="#D8E2E8" stroke-width="1.4" />
+  <text x="459" y="271" fill="#007F78" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">tuna_processed()</text>
+  <text x="459" y="314" fill="#19384A" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="start">Year × species × gear</text>
+  <text x="459" y="344" fill="#19384A" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="start">Statistical bases kept separate</text>
+  <rect x="453" y="366" width="294" height="76" rx="7" fill="#F2F6F9" stroke="none" stroke-width="1.3" />
+  <text x="465" y="394" fill="#0072B2" font-size="17" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">global_by_gear</text>
+  <text x="465" y="423" fill="#0072B2" font-size="17" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">pacific_by_gear</text>
+  <rect x="830" y="172" width="330" height="288" rx="12" fill="#FFFFFF" stroke="#D8E2E8" stroke-width="1.3" />
+  <text x="854" y="211" fill="#19384A" font-size="24" font-family="Arial, Helvetica, sans-serif" font-weight="bold" text-anchor="start">Spatial layers</text>
+  <line x1="854" y1="232" x2="1136" y2="232" stroke="#D8E2E8" stroke-width="1.4" />
+  <text x="854" y="271" fill="#007F78" font-size="20" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">tuna_spatial()</text>
+  <text x="854" y="314" fill="#19384A" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="start">Year × grid × gear</text>
+  <text x="854" y="344" fill="#19384A" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="start">Filter before loading into R</text>
+  <rect x="848" y="366" width="294" height="76" rx="7" fill="#F2F6F9" stroke="none" stroke-width="1.3" />
+  <text x="860" y="394" fill="#0072B2" font-size="17" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">global_catch_cells</text>
+  <text x="860" y="423" fill="#0072B2" font-size="17" font-family="Menlo, Consolas, monospace" font-weight="normal" text-anchor="start">gfw_cells</text>
+  <rect x="40" y="488" width="240" height="36" rx="7" fill="#EEF8F5" stroke="none" stroke-width="1.3" />
+  <text x="160.0" y="512" fill="#007F78" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="middle">Catch (tonnes)</text>
+  <rect x="300" y="488" width="240" height="36" rx="7" fill="#EEF8F5" stroke="none" stroke-width="1.3" />
+  <text x="420.0" y="512" fill="#007F78" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="middle">Fish (number)</text>
+  <rect x="560" y="488" width="280" height="36" rx="7" fill="#EEF8F5" stroke="none" stroke-width="1.3" />
+  <text x="700.0" y="512" fill="#007F78" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="middle">Effort (source units)</text>
+  <rect x="860" y="488" width="300" height="36" rx="7" fill="#EEF8F5" stroke="none" stroke-width="1.3" />
+  <text x="1010.0" y="512" fill="#007F78" font-size="18" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="middle">AIS activity (hours)</text>
+  <text x="40" y="548" fill="#5B707C" font-size="17" font-family="Arial, Helvetica, sans-serif" font-weight="normal" text-anchor="start">Keep units, source products and catch_basis when combining records.</text>
+</svg>

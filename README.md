@@ -1,395 +1,514 @@
 # tuna-data
 
-供实验室研究使用的 **Python 数据接口 + R 调用层**。从五家金枪鱼 RFMO 的官网发现并下载公开数据，读取已有文件，并通过 Google Drive 私有同步目录或 NAS 保存和跨机器使用。
+**金枪鱼研究数据接口 · 图文使用手册**
 
-**本 Git 仓库只保存代码、测试和说明。数据、个人路径、私有云目录 ID 与 token 不提交到 GitHub。**
+用 Python 下载、保存和标准化 RFMO / GFW 数据，在 R 中按年份、鱼种、捕捞方式和海域读取。原始文件、年度合并表、空间明细和分析版本各自保留，同一套接口可以连接本地硬盘、Google Drive 同步目录或挂载的 NAS。
 
-## 存储方式
+**GitHub 保存接口、模板、测试和本手册；研究数据保存在你指定的私有数据目录。** 下方配图说明目录结构、操作流程与返回字段，不包含研究观测值、个人路径或凭据。
 
-```text
-RFMO 官网 / GFW API / 已有下载文件
-                  ↓
-             tuna-data 接口
-                  ↓
-       数据库目录（独立于代码仓库）
-       ├── manifest.json       来源、版本、日期、SHA-256
-       ├── raw/                完整原始文件，可读名称与版本校验值
-       ├── processed/annual/   标准化、合并结果与可复现版本锁
-       ├── processed/spatial/  原始粒度空间明细、网格渔获/努力量、GFW 活动层
-       ├── gfw_dataset.json    GFW 版本及可用时间范围
-       └── gfw_sync_status.json
-                  ↓
-      本地硬盘 / Drive 同步目录 / 挂载的 NAS
-```
+![数据来源、私有数据目录与 R/Python 接口的对应关系](docs/assets/01-library-overview.svg)
 
-Google Drive 保存私有数据，GitHub 保存可安装的接口。新电脑登录自己的 Drive，下载或同步 `library` 目录后设置路径即可。NAS 只需先挂载为系统目录；代码不依赖特定用户名、盘符或操作系统。
+*图 1 · 下载或导入一次，保留完整来源文件；后续研究通过同一套接口读取和复用清洗结果。*
 
-更新保留旧版本，文件写完并校验后才登记到目录。读取时默认检查 SHA-256。原始 ZIP、附带字典和说明均保留；读取 ZIP 不要求手工解压。
+| 我想做什么 | 从这里开始 |
+|---|---|
+| 第一次安装，或在 R 中连接已有数据 | [1. 快速开始](#quick-start) |
+| 确认有哪些数据、应该读哪张表 | [2. 数据分层与目录](#data-layers) |
+| 按年份、鱼种、渔具筛选空间数据 | [3. R 查询示例](#r-queries) |
+| 补下载、重新清洗、固定论文分析版本 | [4. 更新与复现](#update-and-freeze) |
+| 换电脑，使用 Google Drive 或 NAS | [5. 存储与迁移](#storage-and-migration) |
+| 画年度趋势图和空间分布图 | [6. 绘图与输出](#plotting) |
+| 查来源、排错或使用 Python / 命令行 | [7. 来源与范围](#sources) · [8. 常见问题](#troubleshooting) · [9. 进阶参考](#reference) |
 
-## 安装
+<a name="quick-start"></a>
 
-需要 Python 3.11 或更新版本。
+## 1. 快速开始：在 R 中连接已有数据
+
+### ① 安装接口：每台新电脑执行一次
+
+先安装 R 和 Python。R 安装脚本支持已安装的 Python **3.11–3.13**，推荐 3.12。把整个仓库下载到电脑，或在终端运行：
 
 ```bash
 git clone https://github.com/Linbojun99/tuna_data.git
-cd tuna_data
-python3 -m venv .venv
-# macOS/Linux:
-source .venv/bin/activate
-# Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install -e '.[excel,parquet]'
 ```
 
-读取 ICCAT Task 2 的 Access 数据库还需系统工具 `mdbtools`：macOS 使用 `brew install mdbtools`，Debian/Ubuntu 使用 `sudo apt-get install mdbtools`。原始数据库下载和保存不需要此工具。
-
-## 设置路径
-
-优先级：**调用参数 > `TUNA_DATA_HOME` 环境变量 > 配置文件 > 默认目录**。
-
-```python
-from tuna_data import Library
-
-db = Library("/Volumes/NAS/research/tuna-library")
-# Windows: Library("Z:/research/tuna-library")
-# Linux:   Library("/mnt/lab-nas/tuna-library")
-# Drive:   Library("/你的Drive同步目录/tuna-data-library/library")
-print(db.catalog()[["id", "filename", "bytes", "retrieved_at"]])
-```
-
-或设置环境变量后在所有项目中调用同一目录：
-
-```bash
-export TUNA_DATA_HOME="/Volumes/NAS/research/tuna-library"
-tuna-data where
-tuna-data catalog
-```
-
-长期设置：把 `config.example.toml` 复制到 `~/.config/tuna-data/config.toml`，修改 `[storage].root`。可用 `TUNA_DATA_CONFIG` 指定其他配置文件。配置不依赖当前工作目录。
-
-## 下载 RFMO 最新发布文件
-
-```bash
-# 先查看当前官网文件目录（不下载大文件）
-tuna-data discover all
-
-# 自动发现、下载、校验、保留历史版本
-tuna-data update
-# 指定来源
-tuna-data update --sources iotc iccat
-```
-
-| 来源 | 当前适配范围 | 官方入口 |
-|---|---|---|
-| IATTC | 总渔获、围网、延绳钓、竿钓、兼捕和体长文件 | [Public domain](https://www.iattc.org/en-US/Data/Public-domain) |
-| ICCAT | Task 1、Task 2、CATDIS、EFFDIS、体长/年龄相关产品、目录和标志数据下载链接 | [Statistical databases](https://www.iccat.int/en/accesingdb.html) |
-| IOTC | 年度保留渔获、catch/effort、体长、参考表及索引页其他数据文件 | [Datasets](https://iotc.org/data/datasets) |
-| WCPFC | 12 类聚合 C&E、年鉴原始文件、ACE 页面可选年份/船队/渔具文件、兼捕页下载文件 | [Scientific data](https://www.wcpfc.int/sustainability/scientific-data) |
-| CCSBT | 总渔获、分洋区/网格渔获、延绳钓和表层作业、体长、ERS、CDS/TIS | [SBT data](https://www.ccsbt.org/en/content/sbt-data) |
-
-这里的“完整”是**已支持官网入口当前列出的可下载文件完整保存**。它不代表各 RFMO 全部内部记录、未公开数据或每份历史评估报告的输入数据。官网也可能存在断链或尚未更新的栏目；失败会写入 `last_update.json`，命令返回非零状态，不会当作成功。
-
-## 读取和复用清洗
-
-```python
-from tuna_data import Library
-from tuna_data.cleaning import clean_columns, numeric_columns
-
-db = Library()  # 使用已配置路径
-catch = db.read_table("iattc/catchbyflaggear")
-catch = clean_columns(catch)
-catch = numeric_columns(catch, ["anoyear", "t"])
-yft = catch.loc[catch["especiesspecies"] == "YFT"]
-
-# 多表 ZIP 必须明确选择，避免混入 coverage 表或另一种单位的表
-print(db.members("wcpfc/820"))
-ll = db.read_table("wcpfc/820", member="WCPFC_L_PUBLIC_BY_YY_MM.csv")
-
-# ICCAT Access：表名未指定时列出可用表
-iccat = db.read_table("iccat/t2ce", table="t2ce", nrows=100)
-
-# IOTC retained catch
-iotc = db.read_table("iotc/iotc_datasets_rc_sci")
-
-# 固定论文分析版本，不受未来更新影响
-version = db.record("iattc/catchbyflaggear")["sha256"]
-frozen = db.read_table("iattc/catchbyflaggear", version=version)
-
-# 本地 CSV 或 Parquet，便于 R/其他软件继续分析
-db.export_table("iattc/catchbyflaggear", "output/catch.parquet")
-```
-
-CSV 默认按字符串保留原始代码，包括前导零、`NA`、保密标志和实际零值。用 `numeric_columns` 对明确的数值列转换；未知标志会报错。年度渔获可用下述标准模板统一字段并按物种选择互补海域；网格采样表、不同努力量单位和 GFW 活动时数保持独立。
-
-完整表读取需要足够内存。大表可用 `db.path()` 获取原文件，再使用 pandas 分块读取或 DuckDB；`read_table()` 返回一个已读取的表，不返回生命周期已结束的 ZIP 流。
-
-## 标准清洗模板：全球、太平洋与分渔具数据
-
-[完整方法与字段说明](docs/cleaning_pipeline.md) · [全球及太平洋配置](templates/annual_catch.toml) · [仅太平洋配置](templates/pacific_catch.toml) · [可直接运行的 R 示例](examples/r_clean_merge.R) · [Python 示例](examples/python_clean_merge.py)
+在 R 中将 `repo` 改为实际代码目录：
 
 ```r
-source("/你的代码目录/tuna_data/examples/r_clean_merge.R")
+repo <- "/你的代码目录/tuna_data"
+source(file.path(repo, "examples", "r_setup.R"))
 ```
 
-或使用命令行：
+安装脚本创建独立的 `~/.venvs/tuna-data` Python 环境，安装接口、Excel/Parquet 读取依赖和 R 的 `reticulate`。它只安装程序，不下载研究数据。接口以 editable 方式安装，**请保留代码仓库目录**；更新代码后重启 R，使新代码生效。
 
-```bash
-python -m pip install -e '.[excel,parquet]'
-tuna-data build --config templates/annual_catch.toml
-```
+### ② 指定数据目录：每个研究脚本的开头
 
-流程从已有库读取五家 RFMO 的年度表，保留原始字段和出处，统一渔具分类，输出七种主要金枪鱼的全球/太平洋明细、分渔具年度汇总、来源覆盖与缺值检查。热带种选 IATTC EPO + WCPFC WCPO；ALB/PBF 选南北太平洋视图，避免重复叠加。CCSBT 全球分渔具表只用于全球 SBF，不推算其船旗或太平洋分量。
-
-结果默认存于私有 `library/processed/annual/`，每次生成独立目录和 `recipe.lock.toml`。R 中用 `tuna_processed("global_by_gear")` 读取最近一次成功结果，或传 `run = result$run_dir` 固定某一次。`TUNA_DATA_HOME` 和 `path=` 的 Drive/NAS 路径规则不变。迁移派生结果时复制完整 `processed/` 或在目标库重新构建；原有 `mirror/backup` 管理的是原始库。
-
-**合并表保留 `catch_basis`**：保留渔获、登陆量、丢弃量和 WCPFC 年鉴口径不能默认混加为同口径全球总量。空白不会变成零，未识别渔具代码不会被删掉。最新年份的来源不足会明确标记，详见方法文档。
-
-## 空间分布数据与地图
-
-[空间模板与字段说明](docs/spatial_pipeline.md) · [空间配置](templates/spatial_2024.toml) · [可直接运行的 R 清洗及绘图示例](examples/r_spatial_workflow.R)
-
-**全部可用年份**：[历史配置](templates/spatial_all_years.toml) · [历史构建及 R 筛选示例](examples/r_spatial_all_years.R)。运行 `tuna-data build-spatial --config templates/spatial_all_years.toml` 自动处理各来源现有全部年份，包含明确标记日期范围的 GFW 当前年部分。结果按年保存，筛选在读取阶段完成，原始粒度明细完整保留。
+下面的 `library` 应是已经复制或同步到本机的完整数据目录，里面含有 `manifest.json` 和 `raw/`。使用清洗结果还需有 `processed/`。
 
 ```r
-source("/你的代码目录/tuna_data/examples/r_spatial_all_years.R")
-available <- tuna_spatial_catalog()
-yft <- tuna_spatial("global_catch_cells", year = 2000:2025,
-                    species = "YFT", gear = c("longline", "purse_seine"), unit = "tonnes")
-gfw <- tuna_spatial("gfw_cells", year = 2020:2026, rfmo = "IOTC",
-                    gear = "drifting_longlines", include_partial = FALSE)
+repo <- "/你的代码目录/tuna_data"
+Sys.setenv(TUNA_DATA_HOME = "/你的数据目录/library")
+
+# 使用上一步创建的 Python 环境；兼容 macOS、Linux 和 Windows。
+python_rel <- if (.Platform$OS.type == "windows") "Scripts/python.exe" else "bin/python"
+Sys.setenv(RETICULATE_PYTHON = file.path(path.expand("~/.venvs/tuna-data"), python_rel))
+source(file.path(repo, "R", "tuna_data.R"))
+
+# 检查实际连接位置和原始库索引。
+tuna_library()$root$as_posix()
+file.exists(file.path(Sys.getenv("TUNA_DATA_HOME"), "manifest.json"))
 ```
 
-`source_years` / `gfw_coverage` 记录实际覆盖年份与日期；GFW 不支持鱼种筛选，RFMO 与 GFW 的渔具代码可从 `available` 查看。`TUNA_DATA_HOME`、`path=` 和固定 `run=` 的使用方式不变；迁移时复制整个运行目录及其子目录。
+读取已有库时，最后一行应返回 `TRUE`。路径指向 `library` 本身，不是它下面的 `raw` 子目录，也不是 Drive 网页地址。尚无数据时，可选定空目录后按[第 4 节](#update-and-freeze)下载并构建。
+
+> **Python 环境须在首次加载 Python 前设置。** 如果 R 已经加载另一个 Python，请重启 R 再运行上面代码。若安装时自定义过环境位置，将 `RETICULATE_PYTHON` 改成那个环境的可执行文件路径。
+
+### ③ 查看可用数据，再读取
 
 ```r
-source("/你的代码目录/tuna_data/examples/r_spatial_workflow.R")
-# 或先 source("/你的代码目录/tuna_data/R/tuna_data.R") 后单独读取：
-global_cells <- tuna_spatial("global_catch_cells")
-pacific_cells <- tuna_spatial("pacific_catch_cells")
-effort_cells <- tuna_spatial("rfmo_effort_cells")
-gfw_cells <- tuna_spatial("gfw_cells")
-```
-
-默认从完整原始库构建 2024 年、七种金枪鱼的空间明细和网格表；年份可在 TOML 调整。支持 `tuna-data build-spatial --config templates/spatial_2024.toml` 和 R 的 `tuna_spatial_build()`。保留原始时间/网格分辨率、鱼种、渔具、单位、缺失/保密标记和来源行；捕捞吨数、尾数、努力量与 GFW 小时分开。空间来源不等同于年度总量，GFW RFMO 区域也不能重叠相加。地图提供全球来源面板、太平洋分区面板和独立 GFW 面板，只显示海岸线。
-
-## GFW 历史数据和最新补下载
-
-现有文件不需要 token；通过 `tuna-data import` 登记后即可读取。新增 API 下载从环境变量 `GFW_TOKEN` 或本机 `~/.config/tuna-data/gfw-token` 读取凭据，可用 `GFW_TOKEN_FILE` 指定另一路径。不要把凭据放入 Git、云端数据目录或 R 脚本。
-
-```bash
-# 五家 RFMO，2012 年至 API 当前日期；自动解析并记录实际数据版本
-# 0.1°、月度、船旗×渔具，不限制为某一种渔具
-tuna-data gfw-sync
-
-# 单一区域/年份起点；已完成且校验通过的分区自动复用
-tuna-data gfw-sync --rfmos IOTC --start-year 2024
-
-# 同一版本可能修订历史数据；显式刷新保留旧文件
-tuna-data gfw-sync --refresh
-
-# 单独请求一个时间段
-tuna-data gfw WCPFC 2024-01-01 2024-02-01
-```
-
-GFW 数据是 **AIS 推断的 apparent fishing hours**，不是分物种渔获吨数；RFMO 区域内的所有捕鱼活动也不全是金枪鱼作业。原始响应 ZIP、区域几何和 GFW 附带说明一起保存。空间重叠的 RFMO 报告不能直接相加。官方文档：[4Wings reports](https://api-doc.globalfishingwatch.org/our-apis/documentation/docs/v3/4wings/report)。
-
-报告按次序下载，满足一个账号一次报告的 API 限制。网关超时后通过 `last-report` 查询并取回同一份报告，不重复提交。进度保存在本地；中断后继续同一命令即可恢复。此 token 不应同时在其他程序或网页提交报告。
-
-每份响应还会核对 ZIP 内的日期、数据版本、分辨率与 RFMO 几何标识，避免把另一份报告登记为本次结果。读取和清洗已有文件不需要 token：
-
-```python
-from tuna_data.cleaning import gfw_hours
-
-catalog = db.catalog()
-gfw_id = catalog.loc[catalog["id"].str.startswith("gfw/iotc_2024-"), "id"].iloc[-1]
-member = next(name for name in db.members(gfw_id) if name.endswith(".csv"))
-hours = gfw_hours(db.read_table(gfw_id, member=member))
-# lat / lon / fishing_hours 已转换为数值，其余原始代码保留
-```
-
-## R 调用
-
-仓库附有两个可直接运行的脚本：
-
-- [examples/r_quickstart.R](examples/r_quickstart.R)：查看目录，完整读取 IATTC 小表，预览 WCPFC、IOTC 和 GFW 大表，并演示清洗和固定文件版本。
-- [examples/r_setup.R](examples/r_setup.R)：在新电脑创建独立 Python 环境，安装本接口及 Excel/Parquet 依赖。
-
-### 已配置的电脑：直接读取
-
-在一个新的 R 会话中运行（将代码目录改成自己的实际位置）：
-
-```r
-source("/你的代码目录/tuna_data/examples/r_quickstart.R")
-```
-
-脚本自动寻找 `~/.venvs/tuna-data` 或仓库内的 `.venv`，使用已配置的数据路径，不依赖当前工作目录。也可先设置 `RETICULATE_PYTHON` 指定已有环境。读取示例不会触发数据更新；读取 GFW 存量文件不需要 token。
-
-运行后，R 中会留下 `catalogue`（目录）、`catch_raw`（完整 IATTC 原表）、`catch`（转换年份及数值列）、`yft`（黄鳍金枪鱼子集），以及 `ll_preview`、`iotc_preview`、`gfw_preview`。后三个对象是前 1000 行的预览；完整读取需去掉 `nrows = 1000L`。
-
-也可以在自己的研究脚本中使用简短接口：
-
-```r
-# macOS/Linux；Windows 将后半段改为 /Scripts/python.exe
-Sys.setenv(RETICULATE_PYTHON = path.expand("~/.venvs/tuna-data/bin/python"))
-source("/你的代码目录/tuna_data/R/tuna_data.R")
-
+# 原始文件目录：来源、数据集 ID、文件名和版本等。
 catalogue <- tuna_catalog()
 head(catalogue[c("id", "source", "filename")])
-subset(catalogue, source == "iotc")
-catch <- tuna_read("iattc/catchbyflaggear")
-head(catch)
 
+# 已构建的空间数据目录：实际年份、鱼种、渔具、单位与覆盖信息。
+available <- tuna_spatial_catalog()
+head(available[c("year", "source", "species_code", "gear_group", "unit")])
+```
+
+`tuna_spatial_catalog()` 需要已保存的空间清洗结果。没有结果时先运行[全部年份构建](#update-and-freeze)。查询返回 R `data.frame`，可以继续用 `subset()`、`dplyr` 或 `ggplot2`。
+
+也可以直接运行仓库里的完整示例：
+
+| 脚本 | 执行后得到什么 | 是否构建或更新 |
+|---|---|---|
+| [r_quickstart.R](examples/r_quickstart.R) | 原始目录、完整 IATTC 小表及大表预览 | 仅读取，不下载 |
+| [r_spatial_all_years.R](examples/r_spatial_all_years.R) | 历史覆盖目录、RFMO 与 GFW 筛选示例 | 有全部年份结果则读取，否则从已有原始文件构建 |
+| [r_clean_merge.R](examples/r_clean_merge.R) | 全球与太平洋年度标准化、合并结果 | 从已有原始文件构建，不重新下载 |
+
+<a name="data-layers"></a>
+
+## 2. 数据分层：先选对表，再做分析
+
+![原始文件、年度渔获和空间数据的分层及对应接口](docs/assets/02-data-layers.svg)
+
+*图 2 · 原始文件适合核对来源；年度表适合长期趋势；空间表适合分布分析。不同单位和统计口径始终保留。*
+
+| 数据层 | R 调用 | 主要用途 |
+|---|---|---|
+| 完整原始文件与来源索引 | `tuna_catalog()`、`tuna_members()`、`tuna_read()` | 查字典、核对原字段，复用已有 CSV / Excel / ZIP / Access 文件 |
+| 全球 / 太平洋年度分渔具汇总 | `tuna_processed("global_by_gear")`、`tuna_processed("pacific_by_gear")` | 按年份、鱼种、渔具和 `catch_basis` 分析趋势 |
+| 全球 / 太平洋空间渔获网格 | `tuna_spatial("global_catch_cells")`、`tuna_spatial("pacific_catch_cells")` | 保留来源与口径的渔获分布 |
+| RFMO 原始粒度标准化明细 | `tuna_spatial("rfmo_native", ...)` | 核对原始时空粒度、代码、缺失和来源行 |
+| RFMO 努力量网格 | `tuna_spatial("rfmo_effort_cells", ...)` | 分单位研究 hooks、sets 等努力量 |
+| GFW 网格 / 标准化明细 | `tuna_spatial("gfw_cells", ...)`、`tuna_spatial("gfw_native", ...)` | 研究 RFMO 区域内 AIS 推断捕鱼活动时数 |
+
+**渔获吨数、鱼尾数、努力量和 GFW 捕鱼时数是不同指标。** 年度合并仍保留保留渔获、登陆量、丢弃量及 WCPFC 年鉴等统计口径；空间采样数据不等于完整年度总量。
+
+<details>
+<summary>展开：读取原始表和 ZIP 内文件</summary>
+
+```r
+subset(tuna_catalog(), source == "iotc")
+
+# 小表完整读取。
+catch_raw <- tuna_read("iattc/catchbyflaggear")
+head(catch_raw)
+
+# 多文件 ZIP 先列出成员，再明确选择一张表。
 tuna_members("wcpfc/820")
-ll <- tuna_read("wcpfc/820", member = "WCPFC_L_PUBLIC_BY_YY_MM.csv", nrows = 1000L)
+ll_preview <- tuna_read(
+  "wcpfc/820", member = "WCPFC_L_PUBLIC_BY_YY_MM.csv", nrows = 1000L
+)
 ```
 
-原始 CSV 的代码和缺值标志保留为字符；示例复用 Python 的保守清洗函数，只转换指定的数值列。GFW 输出中的 `fishing_hours` 是活动时数，不能当作渔获吨数。
+`nrows = 1000L` 只限制本次预览，不改变已保存的完整原始文件。去掉它可完整读取，需预留相应内存。CSV 默认保留字符串代码、前导零、`NA` 和保密标志；不要对全部字段直接做数值转换。Python 的 `clean_columns()`、`numeric_columns()` 可用于明确指定列的清洗。
 
-### 换电脑：安装代码并指向已有数据
+</details>
 
-1. 安装 R 与 Python 3.12（安装脚本自动寻找已安装的 Python 3.11–3.13），下载整个代码仓库。
-2. 同步或复制整个 `library` 数据目录，保留其中的 `manifest.json`、`raw/` 及其他文件。代码目录和数据目录可以分开存放。
-3. 在 R 中运行一次安装，再指定新电脑的数据位置：
+<a name="r-queries"></a>
+
+## 3. R 查询：按年份、鱼种和捕捞方式筛选
+
+![R 筛选参数与返回字段的对照](docs/assets/03-r-filtering.svg)
+
+*图 3 · 左侧是查询条件，右侧是返回字段。图中仅展示接口和字段含义，实际行数与覆盖取决于选定版本。*
+
+### 太平洋黄鳍金枪鱼：多年、分渔具、吨数
+
+先执行第 1 节的 R 初始化代码，并确认已构建全部年份结果：
 
 ```r
-source("/新电脑代码目录/tuna_data/examples/r_setup.R")
+yft <- tuna_spatial(
+  "pacific_catch_cells",
+  year = 2000:2025,
+  species = "YFT",
+  gear = c("longline", "purse_seine"),
+  unit = "tonnes"
+)
+head(yft[c("year", "source", "catch_basis", "gear_group",
+           "map_lon", "map_lat", "observed_value", "n_missing")])
 
-Sys.setenv(TUNA_DATA_HOME = "/新电脑Drive同步目录/tuna-data-library/library")
-stopifnot(file.exists(file.path(Sys.getenv("TUNA_DATA_HOME"), "manifest.json")))
-source("/新电脑代码目录/tuna_data/examples/r_quickstart.R")
+# 同样的筛选条件可用于全球视图。
+yft_global <- tuna_spatial(
+  "global_catch_cells", year = 2024, species = "YFT", unit = "tonnes"
+)
 ```
 
-Windows 使用正斜杠路径，例如 `C:/research/tuna_data/examples/r_setup.R` 和 `G:/My Drive/tuna-data-library/library`。安装脚本会自动选用环境内的 `Scripts/python.exe`。
+`2000:2025` 表示连续年份；`c(2000, 2025)` 只选两个年份。省略 `year` 读取该结果中全部可用年份，省略其他筛选条件则保留对应全部类别。示例区间不保证每家来源、每种渔具在每一年都有数据；先查 `available`，不要把没有记录的年份补成零。
 
-`Sys.setenv()` 只影响当前 R 会话。长期使用可把路径设置放在自己的研究脚本开头，或将 `TUNA_DATA_HOME="/你的数据目录/library"` 写入用户的 `~/.Renviron` 后重启 R。已有的 `~/.config/tuna-data/config.toml` 也继续有效；环境变量优先于该配置文件。安装脚本不会自动改写这些配置文件。
+标准模板的七种主要金枪鱼：
 
-Python 路径须在首次加载 Python 前设置；若 R 已加载另一个 Python，先重启 R 再运行。参见 [reticulate 环境选择说明](https://rstudio.github.io/reticulate/articles/versions.html)。仅更换数据路径不需要重启 R，但已有的 `db` 对象需重新创建。
+| 代码 | English name | 中文名 |
+|---|---|---|
+| `YFT` | Yellowfin tuna | 黄鳍金枪鱼 |
+| `BET` | Bigeye tuna | 大眼金枪鱼 |
+| `SKJ` | Skipjack tuna | 鲣 |
+| `ALB` | Albacore | 长鳍金枪鱼 |
+| `PBF` | Pacific bluefin tuna | 太平洋蓝鳍金枪鱼 |
+| `BFT` | Atlantic bluefin tuna | 大西洋蓝鳍金枪鱼 |
+| `SBF` | Southern bluefin tuna | 南方蓝鳍金枪鱼 |
 
-R 封装会在每次调用时同步 `TUNA_DATA_HOME` 与 `TUNA_DATA_CONFIG`，因此启动 Python 后再修改或取消 R 中的路径设置也能生效。
-
-### 使用 NAS：先复制完整库，再切换路径
-
-先在操作系统中挂载 NAS。以下代码由用户选择实际挂载点后运行；默认数据源应仍指向原来的完整 Drive/本地库：
+RFMO 标准渔具包括 `longline`、`purse_seine`、`pole_and_line`、`gillnet`、`handline` 等。可用值以目录为准：
 
 ```r
-source("/你的代码目录/tuna_data/R/tuna_data.R")
-# 首次使用时也要先设置 RETICULATE_PYTHON，见上文。
-nas_mount <- "/Volumes/NAS"    # Windows: "Z:/"；Linux: "/mnt/lab-nas"
-stopifnot(dir.exists(nas_mount))
-nas_dir <- file.path(nas_mount, "research", "tuna-library")
-
-db <- tuna_library()          # 原来的完整数据源
-stopifnot(file.exists(file.path(db$root$as_posix(), "manifest.json")))
-invisible(db$mirror(nas_dir))  # 首次复制；以后增量复制，校验文件并保留历史
-
-Sys.setenv(TUNA_DATA_HOME = nas_dir)
-db <- tuna_library()          # 重新创建后指向 NAS
-print(db$root$as_posix())
-catch <- tuna_read("iattc/catchbyflaggear")
-
-# NAS 已有完整库时，跳过 mirror，直接设路径。
-# 单次调用也能指定 path=，优先于环境变量，不改变默认设置：
-catch_nas <- tuna_read("iattc/catchbyflaggear", path = nas_dir)
+unique(available[c("source", "species_code", "gear_group", "unit")])
+subset(available, source == "iotc" & species_code == "YFT")
 ```
 
-路径必须指向含有 `manifest.json` 的目录，不能只复制一个 CSV，也不能填 Google Drive 网页链接。选择 NAS 路径本身不会自动搬移原有数据；先完成上述复制或同步步骤。
-
-不使用 reticulate 时，先运行 `tuna-data export` 生成 CSV，再用 R 的 `read.csv(..., colClasses="character", na.strings=NULL)` 读取。
-
-## R 绘图示例：年度渔获与空间分布
-
-[examples/r_plot_catch_and_gfw.R](examples/r_plot_catch_and_gfw.R) 使用完整原始表生成两张图及其汇总 CSV：
-
-- IATTC 黄鳍金枪鱼（YFT）：按年合计各船旗、渔具的保留渔获吨数，展示源表中的全部年份。
-- GFW：默认选择 IOTC 区域 2024 年完整报告，将各月、船旗、渔具的活动时数按报告给出的坐标中心归并到 1° 网格，用对数色标画空间分布。
+### 核对明细，或只读需要的列
 
 ```r
-# 首次缺少绘图依赖时安装
-install.packages(c("ggplot2", "sf", "rnaturalearth", "rnaturalearthdata",
-                   "ragg", "svglite", "systemfonts", "jsonlite"))
+native_yft <- tuna_spatial(
+  "rfmo_native", year = 2024, species = "YFT", source = "iattc",
+  gear = "longline", unit = "tonnes", measure = "catch"
+)
 
-source("/你的代码目录/tuna_data/examples/r_plot_catch_and_gfw.R")
-# R 中保留 p_yft、p_gfw、annual_yft 和 gfw_grid，可继续修改图形或分析。
+cells_small <- tuna_spatial(
+  "global_catch_cells", year = 2024, species = "YFT", unit = "tonnes",
+  columns = c("year", "source", "catch_basis", "gear_group",
+              "map_lon", "map_lat", "observed_value", "n_missing")
+)
 ```
 
-默认输出到代码仓库的 `reports/figures/`，包括两张 600 dpi PNG、两张可编辑文字的 SVG、两个汇总 CSV、`plot_provenance.json`（数据 ID、SHA-256、请求参数、汇总检查、绘图样式）及 R 环境记录。输出目录已被 Git 忽略。原始数据库文件保持不变。
+结果按年保存；读取时先选择年份分区并应用筛选，再转换成 R 表。大规模 `*_native` 表建议先限定年份和来源。
 
-绘图默认采用简洁的 Nature/Science 风格：英文图题、坐标轴及图例，白底、细线、统一无衬线字体，图宽 183 mm；地图先合并陆地多边形，仅绘制海岸线，不显示国境线。年度曲线使用蓝色，活动地图使用色觉友好的 cividis 连续色标。项目约定记录在 [AGENTS.md](AGENTS.md)，设计参考 [Nature 图形指南](https://research-figure-guide.nature.com/figures/preparing-figures-our-specifications/)；具体投稿时再按目标期刊调整尺寸与字号。
-
-可在运行前修改区域、完整年份、展示网格和输出路径：
+### GFW：区域、年份与活动类型
 
 ```r
-Sys.setenv(TUNA_PLOT_RFMO = "IATTC", TUNA_PLOT_YEAR = "2024",
-           TUNA_PLOT_GRID = "1", TUNA_PLOT_OUT = "~/tuna-plots")
-source("/你的代码目录/tuna_data/examples/r_plot_catch_and_gfw.R")
+gfw <- tuna_spatial(
+  "gfw_cells", year = 2020:2026, rfmo = "IOTC",
+  gear = "drifting_longlines", include_partial = TRUE
+)
+
+# 查看报告实际覆盖到哪一天。
+gfw_coverage <- tuna_spatial("gfw_coverage", rfmo = "IOTC")
+head(gfw_coverage[c("year", "report_start", "report_end_exclusive",
+                    "available_through", "period_status")])
 ```
 
-展示网格可选 0.5、1、2 或 5 度。脚本只匹配完整年度、无额外过滤的月度 0.1° 报告，读取时不设置 `nrows`；没有匹配报告会明确报错，不自动下载或使用部分年度。数据目录仍由 `TUNA_DATA_HOME` 或配置文件指定，已有 GFW 文件不需要 token。
+GFW 的 `gear` 使用其自身类别，例如 `drifting_longlines`，与 RFMO 标准渔具名不同。**GFW 没有鱼种字段，不支持 `species` 筛选**；这些记录表示区域内 AIS 推断的 apparent fishing hours，并非金枪鱼渔获量。设 `include_partial = FALSE` 可排除标记为部分年度的记录。
 
-IATTC 源文件中的 0 表示低于 0.5 吨，年度图未对历史统计口径变化作校正。GFW 图展示所有渔具的 AIS 推断捕鱼活动，不是金枪鱼渔获量；色标为每个展示网格的时数总和，未按面积标准化。未记录网格留空，不能据此认定没有捕鱼。方法依据随数据保存的说明、[GFW 活动数据说明](https://globalfishingwatch.org/dataset-and-code-fishing-activity/)及 [4Wings 报告文档](https://api-doc.globalfishingwatch.org/our-apis/documentation/docs/v3/4wings/report)。
+| 字段 / 标记 | 如何理解 |
+|---|---|
+| `source` / `rfmo` | `source` 是数据提供方；GFW 的 `rfmo` 是报告使用的区域 |
+| `catch_basis` | 渔获统计口径；合并和绘图时继续保留 |
+| `observed_value` | 已知记录的小计；有缺失组成时不能据此宣称完整总量 |
+| `value` / `n_missing` | 聚合含缺失组成时 `value` 保持缺失；`n_missing` 显示缺失数量 |
+| `period_status` | `full_calendar_year`、`partial_year` 或 RFMO 的 `source_reported`；后者不承诺全年完整采样 |
+| `report_end_exclusive` | 请求区间不包含的结束日期；`available_through` 是对应的最后包含日期 |
 
-## R 绘图示例：合并后的全球与太平洋黄鳍渔获
+保留源网格和原始时间粒度，不将粗网格伪装成细网格。不同 RFMO 的 GFW 区域可能重叠，不能直接相加。空间汇总和太平洋划分依据见[空间方法文档](docs/spatial_pipeline.md)。
 
-[examples/r_plot_merged_yft.R](examples/r_plot_merged_yft.R) 读取同一次清洗结果的 `global_catch` 和 `pacific_catch`，生成两张按捕捞方式区分、不同统计口径分开展示的年度趋势图。
+<a name="update-and-freeze"></a>
+
+## 4. 更新与复现：下载、构建、读取是三个步骤
+
+![原始数据更新、生成清洗结果与固定分析版本的流程](docs/assets/04-update-and-freeze.svg)
+
+*图 4 · 原始文件更新后，需要重新构建才能得到新的清洗表。论文分析可固定某次成功结果，避免随最新数据变化。*
+
+### ① 补下载与更新原始文件
+
+在完成第 1 节的 R 初始化后：
 
 ```r
-# 已完成 examples/r_clean_merge.R 后运行；不重新下载或构建数据。
-install.packages(c("ggplot2", "patchwork", "ragg", "svglite", "systemfonts", "jsonlite", "scales")) # 首次需要
-source("/你的代码目录/tuna_data/examples/r_plot_merged_yft.R")
+# 五家 RFMO：自动发现官网当前公开文件，下载、校验并保留历史版本。
+tuna_update()
+
+# GFW：补齐 2012 年起、五家 RFMO 区域的可用报告。
+gfw_api <- reticulate::import("tuna_data.gfw", convert = TRUE)
+gfw_api$sync(library = tuna_library())
 ```
 
-默认只画两个范围的预期来源都有记录的共同期间：当前为 **1950–2024 年**。2025 年仍保存在导出数据中，因为 ICCAT/WCPFC 尚无该年记录，默认不画出其不完整总量。脚本固定一个输入运行目录、核对输入校验值，跨年份缺值时断线，不补零、不平滑，也不把不同统计口径加在一起。
+新增 GFW 下载从环境变量 `GFW_TOKEN` 或本机 `~/.config/tuna-data/gfw-token` 读取 token，也可用 `GFW_TOKEN_FILE` 指定文件。凭据放在数据目录和 Git 仓库之外；**读取已有文件无需 token**。首次下载完整历史报告可能耗时较长，中断后重跑会复用已完成且校验通过的文件。
 
-- 全球图：保留渔获（EPO + Indian）、WCPFC 年鉴值（WCPO）、ICCAT 登陆量（Atlantic）、ICCAT 原生 LF 类型及报告的死亡丢弃量分别展示。面板标明实际海域；它们不是各自覆盖全球的总量。
-- 太平洋图：东太平洋保留渔获与西中太平洋年鉴值分开展示。WCPFC 曲线在两张图中相同。
-- 六种主要渔具单列；其他已报告类别（包括混合渔具）归为 `Other reported gears`，`unknown` 和 `unmapped:*` 归为 `Unclassified codes`。展示分组只影响图，完整细分类另存 CSV。
-- 所有面板都是线性纵轴，单位为千吨，各面板纵轴范围独立。使用英文标注、白底细线和固定色觉友好配色。
-
-输出默认放在私有 `reports/figures/merged_yft/`，包括 600 dpi PNG、180 dpi 预览 PNG、可编辑 SVG、完整分渔具年度表、展示分组表、分组对照、来源覆盖和绘图版本记录。R 中保留 `p_global_yft`、`p_pacific_yft`、`annual_full_gears`、`annual_display` 和 `plot_data`，可继续修改。
+### ② 生成年度合并表与全部年份空间结果
 
 ```r
-# 可选：固定某次合并结果、改输出位置或展示期间。
-Sys.setenv(TUNA_YFT_RUN = "/完整运行目录/Annual_catch_...",
-           TUNA_YFT_OUT = "/你的图片目录",
-           TUNA_YFT_START = "1980", TUNA_YFT_END = "2024")
-source("/你的代码目录/tuna_data/examples/r_plot_merged_yft.R")
-# 不设置 TUNA_YFT_RUN 时，按 TUNA_DATA_HOME / 本机配置定位最新成功结果。
-# 选择更晚年份也不会补全缺失来源；来源不足的年份留空。
+annual_run <- tuna_build(config = file.path(repo, "templates", "annual_catch.toml"))
+spatial_run <- tuna_spatial_build(
+  config = file.path(repo, "templates", "spatial_all_years.toml")
+)
+spatial_run$run_dir
 ```
 
-## 私有云、NAS、迁移与完整备份
+这一步从已有原始文件构建，不触发下载。全部年份配置按各来源的实际年份展开；GFW 当前年若只有部分日期，会保留并明确标记。重叠的同年 GFW 报告按配置选择一份有效报告，其他原始版本仍保存在库中，不重复计入清洗结果。
 
-`raw/` 使用可读名称，例如 `raw/gfw/GFW_IOTC_Fishing_hours_2024_MONTHLY_0.1deg_v5.0__<版本校验值>/GFW_IOTC_Fishing_hours_2024_MONTHLY_0.1deg_v5.0.zip`。目录末尾保留 12 位校验值以区分数据版本；完整 SHA-256、来源文件名和请求参数仍保存在 `manifest.json`。新下载或导入的文件自动沿用此命名方式，已有数据集 ID 及 R/Python 调用方式保持稳定。
+默认结果位于 `library/processed/annual/` 和 `library/processed/spatial/`，每次构建产生独立运行目录。只有构建成功才更新 `latest.json`。每个结果保留配置、来源版本、SHA-256、质量检查和 `recipe.lock.toml`。
 
-原始文件名位于目录表的 `filename` 字段，实际存储位置位于 `path` 字段。通过接口访问时由索引解析位置；迁移记录中的 `path_aliases` 可兼容 Drive 同步时新旧名称到达顺序不同的情况。手动批量改名需要同时更新索引，并保留名称对照表。
+### ③ 日常读最新，论文分析固定版本
+
+```r
+# 默认读取当前库最近一次成功结果。
+annual_by_gear <- tuna_processed("global_by_gear")
+
+# 将这次 run_dir 写入自己的研究脚本，后续一直读取同一版本。
+frozen_run <- spatial_run$run_dir
+frozen_yft <- tuna_spatial(
+  "pacific_catch_cells", run = frozen_run,
+  year = 2024, species = "YFT", unit = "tonnes"
+)
+
+# 如需从保留的原始版本重建，使用该运行目录里的版本锁：
+# tuna_spatial_build(config = file.path(frozen_run, "recipe.lock.toml"))
+```
+
+年度结果同样支持 `tuna_processed("global_by_gear", run = annual_run$run_dir)`。换电脑后，固定运行目录的路径也要改为新位置，并保留该目录全部文件和子目录。
+
+<details>
+<summary>展开：等价命令行、历史刷新与自动化入口</summary>
 
 ```bash
-# 导入已有数据；复制并登记来源，不修改原文件
-tuna-data import /路径/原始.zip --id iotc/my_archive
+# 查看官网当前可下载目录，不下载大文件。
+tuna-data discover all
 
-# 把整个数据目录增量复制到 Drive 桌面同步目录或已挂载 NAS
-# 保留历史和目标目录其他数据，不删除任何已有文件
-tuna-data mirror "/Drive同步目录/tuna-data-library/library"
-tuna-data mirror "/Volumes/NAS/research/tuna-library"
+# 更新原始文件。
+tuna-data update
+tuna-data gfw-sync
 
-# 可搬迁的完整版本包；包含当前与历史版本
-tuna-data backup /备份位置/tuna-library-2026-11-11.zip
-# 换电脑后恢复；所有文件校验通过才登记
-tuna-data --root /新电脑/tuna-library restore /下载位置/tuna-library-2026-11-11.zip
+# 从完整原始库构建。
+tuna-data build --config templates/annual_catch.toml
+tuna-data build-spatial --config templates/spatial_all_years.toml
+
+# GFW 同一版本也可能修订历史；明确刷新时保留旧文件。
+tuna-data gfw-sync --refresh
 ```
 
-Drive 桌面同步目录可直接作为 `TUNA_DATA_HOME`。同步完成后把需要离线使用的目录设为“可离线使用”；新机器登录有权限的账号即可下载，**不需要公开链接**。没有 Drive 桌面客户端的 Linux 机器可另行配置 rclone 的私有 Drive OAuth，然后使用 `rclone copy` 下载到本地目录。
+GFW 报告按次序请求。网关超时会尝试取回同一报告，进度记录在库内；重跑同一命令可恢复。避免同一 token 同时提交其他报告。
 
-**同一份 Drive 同步库只由一台机器更新**，其他机器读取；Drive 文件同步不提供跨机器事务锁。NAS 的本地文件锁能协调同一挂载上的更新，但不替代存储系统自身的并发保证。更新失败后，旧版本仍可读取。
+[scripts/update_private.py](scripts/update_private.py) 可串联 RFMO 更新、可选 GFW 更新和原始库镜像；它**不自动重建 `processed/`**。完整自动化需在更新成功后再执行上面的两条构建命令。可接入实验室已有的 cron / NAS 任务计划，仓库默认不启用定时任务。
 
-自动化入口是 `scripts/update_private.py`：一次执行完成 RFMO 更新、可选 GFW 更新及目录备份，失败返回非零状态。可交给实验室已有的 cron、NAS 任务计划或其他作业调度器；默认不启用定时作业。
+</details>
 
-## 验证
+<a name="storage-and-migration"></a>
+
+## 5. Google Drive、换电脑与 NAS
+
+![完整库迁移与数据路径切换的步骤](docs/assets/05-drive-and-nas.svg)
+
+*图 5 · 先移动完整数据目录，再切换路径。代码和数据分开迁移；清洗结果需保留运行目录与年份分区。*
+
+### 两个目录，各司其职
+
+| 目录 | 内容 | 换电脑时如何处理 |
+|---|---|---|
+| `tuna_data/` 代码仓库 | R / Python 接口、模板、示例、文档 | 从 GitHub 下载或 `git clone`，重新安装环境 |
+| `library/` 数据目录 | `manifest.json`、`raw/`、GFW 元数据、`processed/`，以及自行保存的图表 | 私有 Drive 同步，或从硬盘 / NAS 复制完整目录 |
+
+路径优先级：**调用参数 `path=` > `TUNA_DATA_HOME` > 配置文件 > 默认目录**。长期配置可将 [config.example.toml](config.example.toml) 复制到 `~/.config/tuna-data/config.toml` 并修改 `[storage].root`，也可用 `TUNA_DATA_CONFIG` 指定其他配置文件。
+
+### 换电脑 / NAS 的三个步骤
+
+1. 在新电脑下载代码，按第 1 节运行 `r_setup.R`。
+2. 在原库没有写入任务时，**同步或复制整个 `library` 目录**；保留所有原始版本、`processed/`、`latest.json` 和运行目录子文件。等待同步完成。
+3. 在操作系统中挂载 NAS 或准备 Drive 本地同步目录，设置新的 `TUNA_DATA_HOME`，再读取。
+
+| 存储位置 | 路径示例（请按实际位置修改） |
+|---|---|
+| 本地硬盘 | `D:/research/tuna-library` |
+| Google Drive 桌面同步目录 | `/你的Drive同步目录/tuna-data-library/library` |
+| macOS NAS | `/Volumes/NAS/research/tuna-library` |
+| Linux NAS | `/mnt/lab-nas/tuna-library` |
+| Windows NAS 映射盘 | `Z:/research/tuna-library` |
+
+```r
+# 已完成 R 初始化；NAS 上也已保存完整 library。
+Sys.setenv(TUNA_DATA_HOME = "/Volumes/NAS/research/tuna-library")
+stopifnot(file.exists(file.path(Sys.getenv("TUNA_DATA_HOME"), "manifest.json")))
+
+yft_nas <- tuna_spatial(
+  "pacific_catch_cells", year = 2024, species = "YFT", unit = "tonnes"
+)
+
+# 单次访问另一位置，不改变默认设置：
+# tuna_read("iattc/catchbyflaggear", path = "D:/research/tuna-library")
+```
+
+Drive 网页链接不能作为文件路径。使用 Drive 桌面同步时，将需要的目录设为可离线使用，等待完整下载；有访问权限的账号即可同步，无需公开链接。Linux 可使用另行配置的私有 Drive `rclone` 同步到本地目录。
+
+`Sys.setenv()` 只影响当前 R 会话。可把路径写在研究脚本开头，或把 `TUNA_DATA_HOME="/你的数据目录/library"` 写入 `~/.Renviron` 后重启 R。仅切换数据路径无需重启 R；已有 `db` 对象需要重新创建，`tuna_*()` 封装会在每次调用时同步路径设置。
+
+### 完整迁移与原始库备份的区别
+
+| 操作 | 包含什么 | 使用场景 |
+|---|---|---|
+| 文件系统复制 / Drive 同步整个 `library/` | 原始库、历史版本、年度及空间清洗结果，以及库内其他文件 | **换电脑后直接继续研究** |
+| `tuna-data mirror` / `db$mirror()` | 原始文件、历史版本和库索引；不包含 `processed/` 与绘图输出 | 原始库增量镜像，保留目标已有内容 |
+| `tuna-data backup` / `restore` | 带校验的原始库版本包；不包含 `processed/` 与绘图输出 | 原始库离线备份、恢复 |
+
+若使用 `mirror` 或 `backup` 迁移，**还需单独复制完整 `processed/` 与所需图表**，或者在目标机器重新构建。绘图脚本默认输出在代码目录的 `reports/figures/`，不自动进入 `library`；这些图也要另行同步。
+
+```bash
+# 原始库镜像与版本包：请先设置源库路径。
+tuna-data mirror "/Volumes/NAS/research/tuna-library"
+tuna-data backup /备份位置/tuna-raw-backup.zip
+tuna-data --root /新电脑/tuna-library restore /备份位置/tuna-raw-backup.zip
+```
+
+原始文件使用来源、产品、年份等可读名称，目录末尾保留版本校验值；接口通过 `manifest.json` 定位文件，不依赖手写文件名。不要脱离索引手动批量改名。
+
+同一份 Drive 同步库由一台机器负责更新，其他机器读取；文件同步不能提供跨机器事务锁。等待数据和索引同步完成再在另一台机器读取。
+
+<a name="plotting"></a>
+
+## 6. 绘图与输出：年度趋势、空间渔获、GFW 活动
+
+![三类绘图任务及 PNG、SVG、CSV、JSON 输出](docs/assets/06-plot-outputs.svg)
+
+*图 6 · 每张研究图对应绘图数据与版本记录。这里展示输出类型，实际图像生成到你的私有输出目录。*
+
+| 脚本 | 生成内容 | 默认输出位置（代码仓库内，已被 Git 忽略） |
+|---|---|---|
+| [r_plot_merged_yft.R](examples/r_plot_merged_yft.R) | 全球与太平洋 YFT 年度变化；分渔具、分统计口径 | `reports/figures/merged_yft/` |
+| [r_spatial_workflow.R](examples/r_spatial_workflow.R) | 全球 / 太平洋空间渔获与独立 GFW 面板 | `reports/figures/spatial/` |
+| [r_plot_catch_and_gfw.R](examples/r_plot_catch_and_gfw.R) | IATTC YFT 年度曲线与单一区域完整年度 GFW 地图 | `reports/figures/` |
+
+首次安装绘图依赖后，沿用第 1 节的 `repo` 和数据路径：
+
+```r
+install.packages(c("ggplot2", "patchwork", "sf", "rnaturalearth", "rnaturalearthdata",
+                   "ragg", "svglite", "systemfonts", "jsonlite", "scales"))
+
+# 前提：已经构建年度合并结果。
+source(file.path(repo, "examples", "r_plot_merged_yft.R"))
+
+# 前提：空间结果中有该年份。换年份 / 鱼种只改这两项。
+Sys.setenv(TUNA_SPATIAL_YEAR = "2024", TUNA_SPATIAL_SPECIES = "YFT")
+source(file.path(repo, "examples", "r_spatial_workflow.R"))
+```
+
+空间脚本优先读取已有结果；没有结果时默认构建 2024 年示例。要绘制其他年份，先按第 4 节构建全部年份，或设置 `TUNA_SPATIAL_CONFIG` 指向自己的配置。`TUNA_SPATIAL_YEAR` 只控制绘图选择，不会自动补下载或扩充构建范围。
+
+年度合并图默认选择预期来源都有记录的共同年份；较新但来源不足的年份保留在数据中，图中不补齐。全球图按实际海域和统计口径分面，不能把每个面板当成独立的完整全球总量。缺失年份断线、不补零、不平滑。
+
+默认样式为英文图例、坐标轴与说明，白底、细线、统一无衬线字体及色觉友好配色。**地图仅显示海岸线，不显示国境线。** GFW 使用明确标记单位和对数变换的连续色标，未记录网格留空，不解释为没有捕鱼。
+
+输出包括高分辨率 PNG、可编辑 SVG、绘图汇总 CSV、来源与 SHA-256 的 JSON 记录及 R 环境信息；合并年度图和空间图另有轻量预览 PNG。可通过脚本开头列出的 `TUNA_YFT_OUT`、`TUNA_SPATIAL_OUT` 或 `TUNA_PLOT_OUT` 改变输出位置。
+
+<a name="sources"></a>
+
+## 7. 数据来源、覆盖与统计范围
+
+| 来源 | 下载适配范围 | 官方入口 |
+|---|---|---|
+| IATTC | 总渔获、围网、延绳钓、竿钓、兼捕和体长文件 | [Public domain](https://www.iattc.org/en-US/Data/Public-domain) |
+| WCPFC | 聚合 C&E、年鉴原始文件、ACE 可选年份 / 船队 / 渔具文件及兼捕下载 | [Scientific data](https://www.wcpfc.int/sustainability/scientific-data) |
+| IOTC | 年度保留渔获、catch/effort、体长、参考表及索引页其他文件 | [Datasets](https://iotc.org/data/datasets) |
+| ICCAT | Task 1 / 2、CATDIS、EFFDIS、体长 / 年龄产品、目录及标志数据下载 | [Statistical databases](https://www.iccat.int/en/accesingdb.html) |
+| CCSBT | 总渔获、分洋区 / 网格渔获、延绳钓与表层作业、体长、ERS、CDS/TIS | [SBT data](https://www.ccsbt.org/en/content/sbt-data) |
+| GFW | RFMO 区域 AIS 推断捕鱼活动；月度、0.1°、船旗 × 渔具报告 | [4Wings reports](https://api-doc.globalfishingwatch.org/our-apis/documentation/docs/v3/4wings/report) |
+
+**下载范围大于标准清洗范围。** 原始库完整保留受支持入口中已下载的文件、字典与说明；标准模板只对已实现并验证的表、七种主要金枪鱼及相应活动层做规范化。其他原始产品仍可用 `tuna_read()` 读取。
+
+“全部可用年份”指受支持源文件内实际存在的年份，不表示各 RFMO 全部内部记录、未公开数据或所有历史评估材料。官网断链、未更新栏目或下载失败会记录到 `last_update.json`，更新命令返回非零状态，不会报告为完整成功。具体覆盖查看 `source_years`、`coverage` 和 `gfw_coverage`。
+
+- [年度清洗方法](docs/cleaning_pipeline.md)：字段、渔具映射、物种 / 海域去重、统计口径和质量检查。
+- [空间清洗方法](docs/spatial_pipeline.md)：源粒度、年份分区、太平洋划分、GFW 重叠报告与部分年度。
+- [项目绘图约定](AGENTS.md)：英文标注、海岸线、可复现输出和私有数据管理。
+
+读取 ICCAT Task 2 的 Access 数据库还需 `mdbtools`：macOS 使用 `brew install mdbtools`，Debian/Ubuntu 使用 `sudo apt-get install mdbtools`。下载、保存原始数据库不需要此工具。
+
+<a name="troubleshooting"></a>
+
+## 8. 常见问题
+
+| 现象 | 处理方法 |
+|---|---|
+| `No module named tuna_data` / 加载了错误的 Python | 运行 `r_setup.R`；重启 R，在首次加载前设置 `RETICULATE_PYTHON` |
+| 能看到 `raw/`，却读不到年度或空间表 | 检查 `processed/` 是否同步；若尚未构建，执行第 4 节 |
+| `coverage` 有数据，但只有 2024 年 | 当前结果可能来自单年示例；构建 `spatial_all_years.toml`，或用 `run=` 指向已有历史结果 |
+| 迁移到 NAS 后原始表可读、清洗表找不到 | `mirror/backup` 只处理原始库；单独复制完整 `processed/` 或重建 |
+| 大表读取占用很多内存 | 先筛选 `year`、来源、鱼种和渔具；需要时用 `columns` 限定列 |
+| GFW 不能按 YFT / BET 筛选 | GFW 活动数据没有鱼种；使用 RFMO 渔获层研究物种分布 |
+| 最新年份不完整，或某年没有记录 | 查 `source_years`、`gfw_coverage` 与 `period_status`；不要补零或直接与完整年比较 |
+| `value` 为缺失，但 `observed_value` 有数值 | 存在缺失组成；结合 `n_missing` 和质量表判断，不将已知小计当完整总量 |
+| ZIP 要求选择成员 | 先用 `tuna_members(id)` 列表，再把确切文件名传入 `member=` |
+| 文件缺失或 SHA-256 校验失败 | 确认 Drive 已完整同步；从完整副本恢复或重新下载该版本，不绕过校验继续研究 |
+| GFW 报告超时 / 任务中断 | 重跑同一同步命令以恢复；避免另一个程序同时使用该 token 提交报告 |
+
+<a name="reference"></a>
+
+## 9. Python、命令行与维护参考
+
+<details>
+<summary>展开：Python 独立安装与查询</summary>
+
+```bash
+cd tuna_data
+python3 -m venv .venv
+# macOS / Linux：
+source .venv/bin/activate
+# Windows PowerShell：.venv\Scripts\Activate.ps1
+python -m pip install -e '.[excel,parquet]'
+```
+
+```python
+from tuna_data import Library
+from tuna_data.spatial import read_spatial
+
+library = Library("/你的数据目录/library")
+print(library.catalog()[["id", "source", "filename"]].head())
+yft = read_spatial(
+    "pacific_catch_cells", library=library,
+    year=list(range(2000, 2026)), species=["YFT"],
+    gear=["longline", "purse_seine"], unit=["tonnes"],
+)
+print(yft.head())
+```
+
+已有文件可导入登记，原文件保持不变；也可以导出表格供不使用 reticulate 的 R 环境读取：
+
+```bash
+tuna-data import /路径/原始.zip --id iotc/my_archive
+tuna-data export iattc/catchbyflaggear /输出位置/catch.csv
+```
+
+R 读取原始代码时可用 `read.csv(..., colClasses = "character", na.strings = NULL)`。更多年度处理见 [python_clean_merge.py](examples/python_clean_merge.py)。
+
+</details>
+
+| 模板 / 接口 | 用途 |
+|---|---|
+| [annual_catch.toml](templates/annual_catch.toml) | 全球与太平洋年度合并 |
+| [pacific_catch.toml](templates/pacific_catch.toml) | 仅太平洋年度视图 |
+| [spatial_all_years.toml](templates/spatial_all_years.toml) | 全部可用年份空间处理，按年保存 |
+| [spatial_2024.toml](templates/spatial_2024.toml) | 单年空间模板，便于修改后试运行 |
+| [R/tuna_data.R](R/tuna_data.R) | R 函数签名、筛选参数与路径规则 |
+
+<details>
+<summary>展开：开发验证与配图重建</summary>
 
 ```bash
 python -m pip install -e '.[test,excel,parquet]'
 pytest -q
+Rscript tests/test_r_paths.R
+
+# 仅使用 Python 标准库，重建本手册的六张 SVG 说明图。
+python scripts/build_readme_assets.py
 ```
 
-测试覆盖版本固定、损坏检测、ZIP 多表选择、目录迁移、路径优先级、缺值与零值区别、官网链接解析和路径越界防护。年度模板另测试地域视图去重、渔获口径分组、缺失来源、新表结构检查、版本锁重放及渔具自定义对照。GitHub Actions 仅运行合成测试数据，不接触个人数据目录或 token。
+测试使用合成数据，覆盖版本固定、损坏检测、ZIP 选择、迁移、路径切换、缺值 / 零值、年度与空间合并规则和版本锁重放。GitHub Actions 不访问个人数据目录或 token。
 
-R 的路径切换回归测试也在 GitHub Actions 中运行。已配置 R/Python 的本机可在 R 中执行 `source("tests/test_r_paths.R")`；该测试使用临时生成的小表，检查 Python 启动后更改路径、取消覆盖、配置文件切换、含空格路径和迁移后的数据保留。
+手册配图源代码位于 [build_readme_assets.py](scripts/build_readme_assets.py)，SVG 保存在 [docs/assets](docs/assets)。配图是流程与接口说明；实际研究图由第 6 节脚本从私有数据生成。
+
+</details>

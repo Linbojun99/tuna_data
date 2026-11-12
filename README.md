@@ -278,6 +278,10 @@ IATTC 源文件中的 0 表示低于 0.5 吨，年度图未对历史统计口径
 
 ## 私有云、NAS、迁移与完整备份
 
+`raw/` 使用可读名称，例如 `raw/gfw/GFW_IOTC_Fishing_hours_2024_MONTHLY_0.1deg_v5.0__<版本校验值>/GFW_IOTC_Fishing_hours_2024_MONTHLY_0.1deg_v5.0.zip`。目录末尾保留 12 位校验值以区分数据版本；完整 SHA-256、来源文件名和请求参数仍保存在 `manifest.json`。新下载或导入的文件自动沿用此命名方式，已有数据集 ID 及 R/Python 调用方式保持稳定。
+
+原始文件名位于目录表的 `filename` 字段，实际存储位置位于 `path` 字段。通过接口访问时由索引解析位置；迁移记录中的 `path_aliases` 可兼容 Drive 同步时新旧名称到达顺序不同的情况。手动批量改名需要同时更新索引，并保留名称对照表。
+
 ```bash
 # 导入已有数据；复制并登记来源，不修改原文件
 tuna-data import /路径/原始.zip --id iotc/my_archive

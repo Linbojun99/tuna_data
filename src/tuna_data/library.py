@@ -15,6 +15,7 @@ from filelock import FileLock
 import pandas as pd
 
 from .config import data_home
+from .naming import readable_path
 from .sources import Product, discover, session, stable_id, open_download
 from .storage import atomic_json, checksum, contained, utc_now
 
@@ -59,12 +60,20 @@ class Library:
 
     def path(self, dataset: str, version=None, verify=True) -> Path:
         record = self.record(dataset, version)
-        path = contained(self.root, record["path"])
-        if not path.is_file():
-            raise FileNotFoundError(f"Missing data: {path}. Sync/download this library first.")
-        if verify and checksum(path) != record["sha256"]:
+        # During a Drive rename, files and the index may reach a machine in a
+        # different order. Explicit aliases keep the same verified snapshot readable.
+        corrupt = False
+        for relative in dict.fromkeys([record["path"], *record.get("path_aliases", [])]):
+            path = contained(self.root, relative)
+            if not path.is_file():
+                continue
+            if verify and checksum(path) != record["sha256"]:
+                corrupt = True
+                continue
+            return path
+        if corrupt:
             raise ValueError(f"Checksum mismatch for {dataset}; restore the snapshot")
-        return path
+        raise FileNotFoundError(f"Missing data: {record['path']}. Sync/download this library first.")
 
     def import_file(self, path, dataset: str, *, source_url=None, title=None, provenance=None):
         """Copy a file into the library without changing the original file."""
@@ -74,9 +83,21 @@ class Library:
         if not re.fullmatch(r"[a-z0-9_-]+/[a-zA-Z0-9_.-]+", dataset):
             raise ValueError("Dataset ID must be source/name (letters, digits, _, - and .)")
         digest = checksum(source)
-        # Keep the basename in the hash directory; it carries format information.
-        relative = Path("raw") / dataset.split("/")[0] / digest / source.name
+        name_record = {"filename": source.name, "sha256": digest, "title": title,
+                       "provenance": provenance or {}}
+        previous = self._manifest()["datasets"].get(dataset)
+        matching = next((r for r in [previous["current"], *previous["history"]]
+                         if r["sha256"] == digest), None) if previous else None
+        # Reuse a known snapshot's location, including after manual/library migration.
+        # Otherwise, choose a readable name; original provider names remain metadata.
+        relative = Path(matching["path"]) if matching else readable_path(dataset, name_record)
         target = contained(self.root, str(relative))
+        if not matching and target.exists() and checksum(target) != digest:
+            # Never overwrite another snapshot in the unlikely short-hash collision.
+            relative = relative.parent.with_name(relative.parent.name + "_" + digest[12:]) / relative.name
+            target = contained(self.root, str(relative))
+            if target.exists() and checksum(target) != digest:
+                raise ValueError("Conflicting content at snapshot path")
         target.parent.mkdir(parents=True, exist_ok=True)
         if not target.exists() or checksum(target) != digest:
             with NamedTemporaryFile(dir=target.parent, delete=False) as stream:
@@ -96,6 +117,8 @@ class Library:
             "source_url": source_url, "title": title or source.name,
             "provenance": provenance or {},
         }
+        if matching and matching.get("path_aliases"):
+            record["path_aliases"] = matching["path_aliases"]
         with FileLock(str(self.root / ".manifest.lock"), timeout=120):
             manifest = self._manifest()
             previous = manifest["datasets"].get(dataset)

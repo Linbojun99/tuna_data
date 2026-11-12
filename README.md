@@ -244,6 +244,36 @@ catch_nas <- tuna_read("iattc/catchbyflaggear", path = nas_dir)
 
 不使用 reticulate 时，先运行 `tuna-data export` 生成 CSV，再用 R 的 `read.csv(..., colClasses="character", na.strings=NULL)` 读取。
 
+## R 绘图示例：年度渔获与空间分布
+
+[examples/r_plot_catch_and_gfw.R](examples/r_plot_catch_and_gfw.R) 使用完整原始表生成两张图及其汇总 CSV：
+
+- IATTC 黄鳍金枪鱼（YFT）：按年合计各船旗、渔具的保留渔获吨数，展示源表中的全部年份。
+- GFW：默认选择 IOTC 区域 2024 年完整报告，将各月、船旗、渔具的活动时数按报告给出的坐标中心归并到 1° 网格，用对数色标画空间分布。
+
+```r
+# 首次缺少绘图依赖时安装
+install.packages(c("ggplot2", "sf", "rnaturalearth", "rnaturalearthdata",
+                   "ragg", "systemfonts", "jsonlite"))
+
+source("/你的代码目录/tuna_data/examples/r_plot_catch_and_gfw.R")
+# R 中保留 p_yft、p_gfw、annual_yft 和 gfw_grid，可继续修改图形或分析。
+```
+
+默认输出到代码仓库的 `reports/figures/`，包括两张 300 dpi PNG、两个汇总 CSV、`plot_provenance.json`（数据 ID、SHA-256、请求参数、汇总检查）及 R 环境记录。输出目录已被 Git 忽略。原始数据库文件保持不变。
+
+可在运行前修改区域、完整年份、展示网格和输出路径：
+
+```r
+Sys.setenv(TUNA_PLOT_RFMO = "IATTC", TUNA_PLOT_YEAR = "2024",
+           TUNA_PLOT_GRID = "1", TUNA_PLOT_OUT = "~/tuna-plots")
+source("/你的代码目录/tuna_data/examples/r_plot_catch_and_gfw.R")
+```
+
+展示网格可选 0.5、1、2 或 5 度。脚本只匹配完整年度、无额外过滤的月度 0.1° 报告，读取时不设置 `nrows`；没有匹配报告会明确报错，不自动下载或使用部分年度。数据目录仍由 `TUNA_DATA_HOME` 或配置文件指定，已有 GFW 文件不需要 token。
+
+IATTC 源文件中的 0 表示低于 0.5 吨，年度图未对历史统计口径变化作校正。GFW 图展示所有渔具的 AIS 推断捕鱼活动，不是金枪鱼渔获量；色标为每个展示网格的时数总和，未按面积标准化。未记录网格留空，不能据此认定没有捕鱼。方法依据随数据保存的说明、[GFW 活动数据说明](https://globalfishingwatch.org/dataset-and-code-fishing-activity/)及 [4Wings 报告文档](https://api-doc.globalfishingwatch.org/our-apis/documentation/docs/v3/4wings/report)。
+
 ## 私有云、NAS、迁移与完整备份
 
 ```bash

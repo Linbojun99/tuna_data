@@ -36,3 +36,24 @@ tuna_update <- function(sources = c("iattc", "iccat", "iotc", "wcpfc", "ccsbt"),
   if (length(result$errors)) stop(paste("Update incomplete:", paste(capture.output(str(result$errors)), collapse = "\n")))
   invisible(result)
 }
+
+# Build from already downloaded source snapshots. Raw files are not modified.
+tuna_build <- function(config = NULL, path = NULL, output = NULL) {
+  db <- tuna_library(path)
+  pipeline <- reticulate::import("tuna_data.pipeline", convert = TRUE)
+  pipeline$build_annual(config = config, library = db, output = output)
+}
+
+# run=NULL reads the latest successful run in the selected library.
+# Set run to a fixed folder from tuna_build() for a reproducible analysis.
+tuna_processed <- function(table = "global_by_gear", run = NULL, path = NULL) {
+  db <- tuna_library(path)
+  pipeline <- reticulate::import("tuna_data.pipeline", convert = TRUE)
+  pipeline$read_processed(table, run = run, library = db)
+}
+
+# Keep catch_basis when aggregating. Unknown catch remains NA, not zero.
+tuna_summarise <- function(data, by = c("year", "species_code", "gear_group", "catch_basis")) {
+  pipeline <- reticulate::import("tuna_data.pipeline", convert = TRUE)
+  pipeline$aggregate_catch(data, by = as.list(by))
+}

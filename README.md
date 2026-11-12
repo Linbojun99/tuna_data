@@ -13,7 +13,8 @@ RFMO 官网 / GFW API / 已有下载文件
                   ↓
        数据库目录（独立于代码仓库）
        ├── manifest.json       来源、版本、日期、SHA-256
-       ├── raw/                完整原始文件，按内容哈希保存
+       ├── raw/                完整原始文件，可读名称与版本校验值
+       ├── processed/annual/   标准化、合并结果与可复现版本锁
        ├── gfw_dataset.json    GFW 版本及可用时间范围
        └── gfw_sync_status.json
                   ↓
@@ -116,9 +117,30 @@ frozen = db.read_table("iattc/catchbyflaggear", version=version)
 db.export_table("iattc/catchbyflaggear", "output/catch.parquet")
 ```
 
-CSV 默认按字符串保留原始代码，包括前导零、`NA`、保密标志和实际零值。用 `numeric_columns` 对明确的数值列转换；未知标志会报错。当前版本不把不同来源强行拼成一张“全球总渔获表”，也不自动统一未知努力量单位、展开季度数据或重复加总跨物种努力量。数据库格式和具体分析口径是两层工作。
+CSV 默认按字符串保留原始代码，包括前导零、`NA`、保密标志和实际零值。用 `numeric_columns` 对明确的数值列转换；未知标志会报错。年度渔获可用下述标准模板统一字段并按物种选择互补海域；网格采样表、不同努力量单位和 GFW 活动时数保持独立。
 
 完整表读取需要足够内存。大表可用 `db.path()` 获取原文件，再使用 pandas 分块读取或 DuckDB；`read_table()` 返回一个已读取的表，不返回生命周期已结束的 ZIP 流。
+
+## 标准清洗模板：全球、太平洋与分渔具数据
+
+[完整方法与字段说明](docs/cleaning_pipeline.md) · [全球及太平洋配置](templates/annual_catch.toml) · [仅太平洋配置](templates/pacific_catch.toml) · [可直接运行的 R 示例](examples/r_clean_merge.R) · [Python 示例](examples/python_clean_merge.py)
+
+```r
+source("/你的代码目录/tuna_data/examples/r_clean_merge.R")
+```
+
+或使用命令行：
+
+```bash
+python -m pip install -e '.[excel,parquet]'
+tuna-data build --config templates/annual_catch.toml
+```
+
+流程从已有库读取五家 RFMO 的年度表，保留原始字段和出处，统一渔具分类，输出七种主要金枪鱼的全球/太平洋明细、分渔具年度汇总、来源覆盖与缺值检查。热带种选 IATTC EPO + WCPFC WCPO；ALB/PBF 选南北太平洋视图，避免重复叠加。CCSBT 全球分渔具表只用于全球 SBF，不推算其船旗或太平洋分量。
+
+结果默认存于私有 `library/processed/annual/`，每次生成独立目录和 `recipe.lock.toml`。R 中用 `tuna_processed("global_by_gear")` 读取最近一次成功结果，或传 `run = result$run_dir` 固定某一次。`TUNA_DATA_HOME` 和 `path=` 的 Drive/NAS 路径规则不变。迁移派生结果时复制完整 `processed/` 或在目标库重新构建；原有 `mirror/backup` 管理的是原始库。
+
+**合并表保留 `catch_basis`**：保留渔获、登陆量、丢弃量和 WCPFC 年鉴口径不能默认混加为同口径全球总量。空白不会变成零，未识别渔具代码不会被删掉。最新年份的来源不足会明确标记，详见方法文档。
 
 ## GFW 历史数据和最新补下载
 
@@ -306,10 +328,10 @@ Drive 桌面同步目录可直接作为 `TUNA_DATA_HOME`。同步完成后把需
 ## 验证
 
 ```bash
-python -m pip install -e '.[test]'
+python -m pip install -e '.[test,excel,parquet]'
 pytest -q
 ```
 
-测试覆盖版本固定、损坏检测、ZIP 多表选择、目录迁移、路径优先级、缺值与零值区别、官网链接解析和路径越界防护。GitHub Actions 仅运行合成测试数据，不接触个人数据目录或 token。
+测试覆盖版本固定、损坏检测、ZIP 多表选择、目录迁移、路径优先级、缺值与零值区别、官网链接解析和路径越界防护。年度模板另测试地域视图去重、渔获口径分组、缺失来源、新表结构检查、版本锁重放及渔具自定义对照。GitHub Actions 仅运行合成测试数据，不接触个人数据目录或 token。
 
 R 的路径切换回归测试也在 GitHub Actions 中运行。已配置 R/Python 的本机可在 R 中执行 `source("tests/test_r_paths.R")`；该测试使用临时生成的小表，检查 Python 启动后更改路径、取消覆盖、配置文件切换、含空格路径和迁移后的数据保留。

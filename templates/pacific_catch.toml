@@ -1,0 +1,9 @@
+# 仅太平洋：热带种使用 IATTC EPO + WCPFC WCPO。
+# ALB/PBF 使用 WCPFC NorthPacific + SouthPacific，不再加 EPO/WCPO。
+# CCSBT 全球分渔具表不能推算太平洋 SBF；本模板不包含 SBF。
+[pipeline]
+start_year = 1950
+species = ["ALB", "BET", "SKJ", "YFT", "PBF"]
+scopes = ["pacific"]
+
+[versions]

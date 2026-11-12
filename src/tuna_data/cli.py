@@ -17,6 +17,9 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("where")
     sub.add_parser("catalog")
+    p = sub.add_parser("build")
+    p.add_argument("--config", help="Annual catch recipe TOML; default builds global and Pacific tables")
+    p.add_argument("--output", help="Output parent directory; default <library>/processed/annual")
     p = sub.add_parser("discover")
     p.add_argument("source", choices=list(LANDINGS) + ["all"])
     p = sub.add_parser("update")
@@ -55,6 +58,9 @@ def main(argv=None):
             print(lib.root)
         elif args.command == "catalog":
             print(lib.catalog().to_json(orient="records", force_ascii=False, indent=2))
+        elif args.command == "build":
+            from .pipeline import build_annual
+            print(json.dumps(build_annual(args.config, library=lib, output=args.output), ensure_ascii=False, indent=2))
         elif args.command == "discover":
             products = []
             for source in LANDINGS if args.source == "all" else [args.source]:

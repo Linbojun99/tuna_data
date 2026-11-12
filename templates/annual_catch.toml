@@ -1,0 +1,17 @@
+# 全球与太平洋年度渔获模板。先下载/更新，再运行本模板；不改写 raw。
+# python: tuna-data build --config templates/annual_catch.toml
+# R:      result <- tuna_build(config = ".../templates/annual_catch.toml")
+[pipeline]
+start_year = 1950
+# end_year = 2024  # 不填写时保留源表中的最新年份，覆盖不足会单独标记
+species = ["ALB", "BET", "SKJ", "YFT", "PBF", "BFT", "SBF"]
+scopes = ["global", "pacific"]
+# gear_overrides = "my_gear_crosswalk.csv"  # 相对本配置文件；必须写来源依据
+
+# 不填写则使用库中当前版本。每次输出 recipe.lock.toml 固定实际版本。
+[versions]
+# iattc = "完整64位SHA256"
+# wcpfc = "完整64位SHA256"
+# iotc = "完整64位SHA256"
+# iccat = "完整64位SHA256"
+# ccsbt = "完整64位SHA256"

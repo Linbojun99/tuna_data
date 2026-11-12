@@ -14,6 +14,7 @@ config.local.toml
 local/
 data/
 reports/
+processed/
 *.zip
 *.7z
 *.parquet

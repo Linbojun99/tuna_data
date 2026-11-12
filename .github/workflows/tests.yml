@@ -15,3 +15,19 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e '.[test]'
       - run: pytest -q
+  r-paths:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        id: python
+        with:
+          python-version: '3.12'
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - run: pip install -e .
+      - run: Rscript -e 'install.packages("reticulate")'
+      - run: Rscript tests/test_r_paths.R
+        env:
+          RETICULATE_PYTHON: ${{ steps.python.outputs.python-path }}

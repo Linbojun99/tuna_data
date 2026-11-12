@@ -6,6 +6,18 @@ tuna_library <- function(path = NULL) {
     stop("Install reticulate: install.packages('reticulate')")
   }
   td <- reticulate::import("tuna_data", convert = TRUE)
+  # R's Sys.setenv() does not refresh Python's cached os.environ after Python
+  # has started. Synchronize only the two storage settings, including unsets,
+  # so switching Drive/NAS paths in an existing R session takes effect.
+  python_env <- reticulate::import("os", convert = TRUE)$environ
+  for (name in c("TUNA_DATA_HOME", "TUNA_DATA_CONFIG")) {
+    value <- Sys.getenv(name, unset = NA_character_)
+    if (is.na(value)) {
+      python_env$pop(name, NULL)
+    } else {
+      python_env$update(stats::setNames(list(value), name))
+    }
+  }
   if (is.null(path)) td$Library() else td$Library(root = path)
 }
 

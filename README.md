@@ -157,18 +157,90 @@ hours = gfw_hours(db.read_table(gfw_id, member=member))
 
 ## R 调用
 
-```r
-install.packages("reticulate")  # 只需一次
-# 指向已经安装 tuna-data 的 Python，不要求所有电脑路径相同
-Sys.setenv(RETICULATE_PYTHON = "/你的虚拟环境/bin/python")
-source("R/tuna_data.R")
+仓库附有两个可直接运行的脚本：
 
-Sys.setenv(TUNA_DATA_HOME = "/Volumes/NAS/research/tuna-library")
-catalog <- tuna_catalog()
-catch <- tuna_read("iattc/catchbyflaggear")
-ll <- tuna_read("wcpfc/820", member = "WCPFC_L_PUBLIC_BY_YY_MM.csv")
-# 也可显式传 path=，覆盖环境变量
+- [examples/r_quickstart.R](examples/r_quickstart.R)：查看目录，完整读取 IATTC 小表，预览 WCPFC、IOTC 和 GFW 大表，并演示清洗和固定文件版本。
+- [examples/r_setup.R](examples/r_setup.R)：在新电脑创建独立 Python 环境，安装本接口及 Excel/Parquet 依赖。
+
+### 已配置的电脑：直接读取
+
+在一个新的 R 会话中运行（将代码目录改成自己的实际位置）：
+
+```r
+source("/你的代码目录/tuna_data/examples/r_quickstart.R")
 ```
+
+脚本自动寻找 `~/.venvs/tuna-data` 或仓库内的 `.venv`，使用已配置的数据路径，不依赖当前工作目录。也可先设置 `RETICULATE_PYTHON` 指定已有环境。读取示例不会触发数据更新；读取 GFW 存量文件不需要 token。
+
+运行后，R 中会留下 `catalogue`（目录）、`catch_raw`（完整 IATTC 原表）、`catch`（转换年份及数值列）、`yft`（黄鳍金枪鱼子集），以及 `ll_preview`、`iotc_preview`、`gfw_preview`。后三个对象是前 1000 行的预览；完整读取需去掉 `nrows = 1000L`。
+
+也可以在自己的研究脚本中使用简短接口：
+
+```r
+# macOS/Linux；Windows 将后半段改为 /Scripts/python.exe
+Sys.setenv(RETICULATE_PYTHON = path.expand("~/.venvs/tuna-data/bin/python"))
+source("/你的代码目录/tuna_data/R/tuna_data.R")
+
+catalogue <- tuna_catalog()
+head(catalogue[c("id", "source", "filename")])
+subset(catalogue, source == "iotc")
+catch <- tuna_read("iattc/catchbyflaggear")
+head(catch)
+
+tuna_members("wcpfc/820")
+ll <- tuna_read("wcpfc/820", member = "WCPFC_L_PUBLIC_BY_YY_MM.csv", nrows = 1000L)
+```
+
+原始 CSV 的代码和缺值标志保留为字符；示例复用 Python 的保守清洗函数，只转换指定的数值列。GFW 输出中的 `fishing_hours` 是活动时数，不能当作渔获吨数。
+
+### 换电脑：安装代码并指向已有数据
+
+1. 安装 R 与 Python 3.12（安装脚本自动寻找已安装的 Python 3.11–3.13），下载整个代码仓库。
+2. 同步或复制整个 `library` 数据目录，保留其中的 `manifest.json`、`raw/` 及其他文件。代码目录和数据目录可以分开存放。
+3. 在 R 中运行一次安装，再指定新电脑的数据位置：
+
+```r
+source("/新电脑代码目录/tuna_data/examples/r_setup.R")
+
+Sys.setenv(TUNA_DATA_HOME = "/新电脑Drive同步目录/tuna-data-library/library")
+stopifnot(file.exists(file.path(Sys.getenv("TUNA_DATA_HOME"), "manifest.json")))
+source("/新电脑代码目录/tuna_data/examples/r_quickstart.R")
+```
+
+Windows 使用正斜杠路径，例如 `C:/research/tuna_data/examples/r_setup.R` 和 `G:/My Drive/tuna-data-library/library`。安装脚本会自动选用环境内的 `Scripts/python.exe`。
+
+`Sys.setenv()` 只影响当前 R 会话。长期使用可把路径设置放在自己的研究脚本开头，或将 `TUNA_DATA_HOME="/你的数据目录/library"` 写入用户的 `~/.Renviron` 后重启 R。已有的 `~/.config/tuna-data/config.toml` 也继续有效；环境变量优先于该配置文件。安装脚本不会自动改写这些配置文件。
+
+Python 路径须在首次加载 Python 前设置；若 R 已加载另一个 Python，先重启 R 再运行。参见 [reticulate 环境选择说明](https://rstudio.github.io/reticulate/articles/versions.html)。仅更换数据路径不需要重启 R，但已有的 `db` 对象需重新创建。
+
+R 封装会在每次调用时同步 `TUNA_DATA_HOME` 与 `TUNA_DATA_CONFIG`，因此启动 Python 后再修改或取消 R 中的路径设置也能生效。
+
+### 使用 NAS：先复制完整库，再切换路径
+
+先在操作系统中挂载 NAS。以下代码由用户选择实际挂载点后运行；默认数据源应仍指向原来的完整 Drive/本地库：
+
+```r
+source("/你的代码目录/tuna_data/R/tuna_data.R")
+# 首次使用时也要先设置 RETICULATE_PYTHON，见上文。
+nas_mount <- "/Volumes/NAS"    # Windows: "Z:/"；Linux: "/mnt/lab-nas"
+stopifnot(dir.exists(nas_mount))
+nas_dir <- file.path(nas_mount, "research", "tuna-library")
+
+db <- tuna_library()          # 原来的完整数据源
+stopifnot(file.exists(file.path(db$root$as_posix(), "manifest.json")))
+invisible(db$mirror(nas_dir))  # 首次复制；以后增量复制，校验文件并保留历史
+
+Sys.setenv(TUNA_DATA_HOME = nas_dir)
+db <- tuna_library()          # 重新创建后指向 NAS
+print(db$root$as_posix())
+catch <- tuna_read("iattc/catchbyflaggear")
+
+# NAS 已有完整库时，跳过 mirror，直接设路径。
+# 单次调用也能指定 path=，优先于环境变量，不改变默认设置：
+catch_nas <- tuna_read("iattc/catchbyflaggear", path = nas_dir)
+```
+
+路径必须指向含有 `manifest.json` 的目录，不能只复制一个 CSV，也不能填 Google Drive 网页链接。选择 NAS 路径本身不会自动搬移原有数据；先完成上述复制或同步步骤。
 
 不使用 reticulate 时，先运行 `tuna-data export` 生成 CSV，再用 R 的 `read.csv(..., colClasses="character", na.strings=NULL)` 读取。
 
@@ -203,3 +275,5 @@ pytest -q
 ```
 
 测试覆盖版本固定、损坏检测、ZIP 多表选择、目录迁移、路径优先级、缺值与零值区别、官网链接解析和路径越界防护。GitHub Actions 仅运行合成测试数据，不接触个人数据目录或 token。
+
+R 的路径切换回归测试也在 GitHub Actions 中运行。已配置 R/Python 的本机可在 R 中执行 `source("tests/test_r_paths.R")`；该测试使用临时生成的小表，检查 Python 启动后更改路径、取消覆盖、配置文件切换、含空格路径和迁移后的数据保留。

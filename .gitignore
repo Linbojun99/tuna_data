@@ -20,3 +20,8 @@ processed/
 *.parquet
 *.rds
 *.RData
+*.sqlite
+*.sqlite-*
+*.sso
+*.rep
+*.par

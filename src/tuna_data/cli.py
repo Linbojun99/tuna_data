@@ -23,6 +23,26 @@ def main(argv=None):
     p = sub.add_parser("build-spatial")
     p.add_argument("--config", help="Spatial recipe TOML; default 2024, seven tuna species and five GFW regions")
     p.add_argument("--output", help="Output parent directory; default <library>/processed/spatial")
+    p = sub.add_parser("assessment-sync", help="Download only declared public assessment sources to a local-only vault")
+    p.add_argument("--config", required=True, help="Public assessment recipe JSON")
+    p.add_argument("--cache", help="Local-only source vault, outside Drive/NAS library")
+    p.add_argument("--refresh", action="store_true")
+    p.add_argument("--workers", type=int, default=4)
+    p = sub.add_parser("assessment-build", help="Build the approved public assessment result database")
+    p.add_argument("--config", required=True)
+    p.add_argument("--cache")
+    p.add_argument("--output")
+    p = sub.add_parser("assessment-catalog")
+    p.add_argument("--run")
+    p.add_argument("--species")
+    p = sub.add_parser("assessment-validate")
+    p.add_argument("--run")
+    p = sub.add_parser("assessment-copy", help="Copy a validated result snapshot to another library root")
+    p.add_argument("destination")
+    p.add_argument("--run")
+    p = sub.add_parser("assessment-bundle", help="Export a portable ZIP containing validated results only")
+    p.add_argument("destination")
+    p.add_argument("--run")
     p = sub.add_parser("discover")
     p.add_argument("source", choices=list(LANDINGS) + ["all"])
     p = sub.add_parser("update")
@@ -67,6 +87,22 @@ def main(argv=None):
         elif args.command == "build-spatial":
             from .spatial import build_spatial
             print(json.dumps(build_spatial(args.config, library=lib, output=args.output), ensure_ascii=False, indent=2))
+        elif args.command.startswith("assessment-"):
+            from . import assessment as a
+            if args.command == "assessment-sync":
+                result=a.sync_assessments(args.config,cache=args.cache,library=lib,workers=args.workers,refresh=args.refresh)
+                result={'sources_checked':len(result['sources']),'errors':result['errors']}
+            elif args.command == "assessment-build":
+                result=a.build_assessments(args.config,cache=args.cache,library=lib,output=args.output)
+            elif args.command == "assessment-catalog":
+                result=a.assessment_catalog(run=args.run,library=lib,species=args.species).to_dict('records')
+            elif args.command == "assessment-validate":
+                result=a.validate_assessments(run=args.run,library=lib)
+            elif args.command == "assessment-copy":
+                result=a.copy_assessments(args.destination,run=args.run,library=lib)
+            else:
+                result=a.bundle_assessments(args.destination,run=args.run,library=lib)
+            print(json.dumps(result,ensure_ascii=False,indent=2))
         elif args.command == "discover":
             products = []
             for source in LANDINGS if args.source == "all" else [args.source]:

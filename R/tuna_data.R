@@ -23,6 +23,44 @@ tuna_library <- function(path = NULL) {
 
 tuna_catalog <- function(path = NULL) tuna_library(path)$catalog()
 
+# Public stock-assessment results. The selected library can be local, Drive or NAS.
+tuna_assessment_catalog <- function(path = NULL, run = NULL, ...) {
+  db <- tuna_library(path)
+  a <- reticulate::import("tuna_data.assessment", convert = TRUE)
+  a$assessment_catalog(library = db, run = run, ...)
+}
+
+tuna_assessment <- function(table = "series", path = NULL, run = NULL,
+                            include_forecast = FALSE, columns = NULL, ...) {
+  db <- tuna_library(path)
+  a <- reticulate::import("tuna_data.assessment", convert = TRUE)
+  if (!is.null(columns)) columns <- as.list(columns)
+  a$read_assessment(table, library = db, run = run, columns = columns,
+                    include_forecast = include_forecast, ...)
+}
+
+tuna_assessment_native <- function(model, section, path = NULL, run = NULL) {
+  db <- tuna_library(path)
+  a <- reticulate::import("tuna_data.assessment", convert = TRUE)
+  a$read_native(model, section, library = db, run = run)
+}
+
+tuna_assessment_file <- function(file_id, path = NULL, run = NULL) {
+  db <- tuna_library(path)
+  a <- reticulate::import("tuna_data.assessment", convert = TRUE)
+  a$assessment_file(file_id, library = db, run = run)$as_posix()
+}
+
+tuna_assessment_validate <- function(path = NULL, run = NULL) {
+  db <- tuna_library(path)
+  reticulate::import("tuna_data.assessment", convert = TRUE)$validate_assessments(library = db, run = run)
+}
+
+tuna_assessment_copy <- function(destination, path = NULL, run = NULL) {
+  db <- tuna_library(path)
+  reticulate::import("tuna_data.assessment", convert = TRUE)$copy_assessments(destination, library = db, run = run)
+}
+
 tuna_members <- function(dataset, path = NULL) {
   tuna_library(path)$members(dataset)
 }

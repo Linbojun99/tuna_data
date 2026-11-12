@@ -4,6 +4,8 @@
 
 用 Python 下载、保存和标准化 RFMO / GFW 数据，在 R 中按年份、鱼种、捕捞方式和海域读取。原始文件、年度合并表、空间明细和分析版本各自保留，同一套接口可以连接本地硬盘、Google Drive 同步目录或挂载的 NAS。
 
+另提供[公开资源评估数据库](docs/assessment_database.md)：按物种、种群、评估年份和模型读取生物量、补充量、参考点、参数与允许的原生结果。个人 CPUE 不参与处理；logbook、观测输入和混合评估原包不进入共享库。
+
 **GitHub 保存接口、模板、测试和本手册；研究数据保存在你指定的私有数据目录。** 下方配图说明目录结构、操作流程与返回字段，不包含研究观测值、个人路径或凭据。
 
 ![数据来源、私有数据目录与 R/Python 接口的对应关系](docs/assets/01-library-overview.svg)
@@ -18,6 +20,7 @@
 | 补下载、重新清洗、固定论文分析版本 | [4. 更新与复现](#update-and-freeze) |
 | 换电脑，使用 Google Drive 或 NAS | [5. 存储与迁移](#storage-and-migration) |
 | 画年度趋势图和空间分布图 | [6. 绘图与输出](#plotting) |
+| 查询资源评估模型、参考点和参数 | [资源评估图文手册](docs/assessment_database.md) · [可运行 R 示例](examples/r_assessment_database.R) |
 | 查来源、排错或使用 Python / 命令行 | [7. 来源与范围](#sources) · [8. 常见问题](#troubleshooting) · [9. 进阶参考](#reference) |
 
 <a name="quick-start"></a>
@@ -84,6 +87,23 @@ head(available[c("year", "source", "species_code", "gear_group", "unit")])
 | [r_quickstart.R](examples/r_quickstart.R) | 原始目录、完整 IATTC 小表及大表预览 | 仅读取，不下载 |
 | [r_spatial_all_years.R](examples/r_spatial_all_years.R) | 历史覆盖目录、RFMO 与 GFW 筛选示例 | 有全部年份结果则读取，否则从已有原始文件构建 |
 | [r_clean_merge.R](examples/r_clean_merge.R) | 全球与太平洋年度标准化、合并结果 | 从已有原始文件构建，不重新下载 |
+| [r_assessment_database.R](examples/r_assessment_database.R) | 评估覆盖表、模型结果、参考点、参数及趋势预览 | 仅读取并生成本地预览，不下载 |
+
+### ④ 查询公开资源评估结果
+
+![公开资源评估数据库的来源、保存和查询](docs/assets/07-assessment-database.svg)
+
+```r
+tuna_assessment("coverage")
+models <- tuna_assessment_catalog(species = "BET", stock = "EPO-BET", assessment_year = 2024L)
+models[, c("model_id", "model_name", "model_role")]
+
+id <- subset(models, model_name == "Fix-1-1")$model_id[[1L]]
+ssb <- tuna_assessment("series", model = id, metric = "spawning_quantity",
+                       section = "DERIVED_QUANTITIES:SSB", year = as.list(2000:2023))
+```
+
+评估年份与数据年份分别筛选；季度、模型情景、单位和区间定义全部保留。详细的来源覆盖、统计口径、更新和 NAS 复制方法见[资源评估手册](docs/assessment_database.md)。该库位于 `library/processed/assessments/`，不通过原始文件的 `tuna_catalog()` 查询。
 
 <a name="data-layers"></a>
 
@@ -503,7 +523,7 @@ python -m pip install -e '.[test,excel,parquet]'
 pytest -q
 Rscript tests/test_r_paths.R
 
-# 仅使用 Python 标准库，重建本手册的六张 SVG 说明图。
+# 仅使用 Python 标准库，重建本手册的七张 SVG 说明图。
 python scripts/build_readme_assets.py
 ```
 

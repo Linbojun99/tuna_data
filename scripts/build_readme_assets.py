@@ -202,7 +202,28 @@ def plot_outputs():
     f.save()
 
 
+def assessments():
+    f = Figure("07-assessment-database.svg", 7, "Public assessment results, with every model traceable",
+               "Select a stock, assessment vintage and model before reading estimates or parameters.", 700)
+    for x,title,lines in [
+        (40,"Public sources",["RFMO / ISC reports","SS3 / MULTIFAN-CL outputs","Published result databases"]),
+        (435,"Local source vault",["Pinned URL + checksum","Mixed archives stay local","Result / parameter allowlist"]),
+        (830,"Private result library",["SQLite + approved assets","Drive / local disk / NAS","Immutable, verified snapshots"])]:
+        f.card(x,176,330,210,title)
+        for y,line in zip([272,307,342],lines):f.text(x+24,y,line,18)
+    f.line(380,280,423,280,arrow=True,colour=BLUE)
+    f.line(775,280,818,280,arrow=True,colour=BLUE)
+    f.rect(40,416,1120,108,fill=AQUA,stroke="none")
+    f.text(64,450,"QUERY KEYS",15,TEAL,"bold")
+    f.text(64,486,"Species  /  Stock  /  Assessment year  /  Model  /  Result year  /  Season  /  Metric",21)
+    f.card(40,554,530,110,"R / Python")
+    f.text(64,642,"Catalog  →  Select model  →  Read results",20,BLUE)
+    f.card(600,554,560,110,"Preserved definitions")
+    f.text(624,642,"Units · intervals · historical / forecast · source",19)
+    f.save()
+
+
 if __name__ == "__main__":
-    for build in [overview, layers, filtering, updating, migration, plot_outputs]:
+    for build in [overview, layers, filtering, updating, migration, plot_outputs, assessments]:
         build()
-    print(f"Built 6 documentation SVGs in {OUT}")
+    print(f"Built 7 documentation SVGs in {OUT}")

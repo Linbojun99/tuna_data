@@ -2,6 +2,44 @@
 
 此模板从完整原始库构建 RFMO 渔获/努力量空间表和 GFW 捕鱼活动表。默认演示 **2024 年、七种主要金枪鱼、五个 GFW RFMO 区域**；其他年份在配置中调整。原始历史文件仍完整保留，默认运行不会把所有历史年份都重复展开为派生表。
 
+## 全部可用年份与筛选接口
+
+用 [spatial_all_years.toml](../templates/spatial_all_years.toml) 构建全部已支持空间产品的可用历史年份：
+
+```bash
+tuna-data gfw-sync
+tuna-data build-spatial --config templates/spatial_all_years.toml
+```
+
+`all_years=true` 自动取各来源实际年份，不用手工维护起止年。`include_partial_gfw=true` 包含当前年已公布部分，保留明确的请求起止日期；同一 RFMO/年份仅选择一个覆盖最长的报告，不叠加旧的短窗口。完整年使用 `period_status=full_calendar_year`，未完整年为 `partial_year`；这里的完整指请求涵盖完整日历年，不表示 AIS 观测覆盖全部实际捕鱼活动。缺失的 RFMO/年份报告会报错，不能静默跳过。
+
+RFMO 原生明细和网格结果按年写成 Parquet 文件，GFW 原生记录按 RFMO/年写成文件。R 的筛选条件在 Arrow 读取阶段生效，避免先载入所有历史记录再筛选；默认校验被选中文件的 SHA-256。旧的单文件 2024 年结果仍可读取。七种金枪鱼和所选产品保持与 2024 模板相同；其他产品、替代视图及其他鱼种仍保存在完整原始库，不重复叠加。
+
+```r
+source("/你的代码目录/tuna_data/examples/r_spatial_all_years.R")
+
+available <- tuna_spatial_catalog() # 实际可用的年份、鱼种、渔具、来源和单位
+x <- tuna_spatial("global_catch_cells", year = 2000:2025,
+                  species = "YFT", gear = c("longline", "purse_seine"), unit = "tonnes")
+p <- tuna_spatial("pacific_catch_cells", year = c(2010, 2024),
+                  species = c("YFT", "BET"), gear = "longline", unit = "tonnes")
+native <- tuna_spatial("rfmo_native", year = 2024, source = "IATTC",
+                      species = "YFT", gear = "longline", unit = "tonnes", measure = "catch")
+
+# GFW 没有鱼种标签，不能设置 species；使用其原始渔具分类。
+g <- tuna_spatial("gfw_native", year = 2024, rfmo = "IOTC", gear = "drifting_longlines")
+g_cells <- tuna_spatial("gfw_cells", year = 2020:2026, rfmo = "IOTC", include_partial = FALSE)
+head(tuna_spatial("gfw_coverage")) # available_through 与 report_end_exclusive
+
+# 只取所需列：读取后仍保留口径和缺值数量。
+small <- tuna_spatial("global_catch_cells", year = 2024, species = "YFT", unit = "tonnes",
+                     columns = c("year", "source", "catch_basis", "gear_group", "map_lon", "map_lat", "observed_value", "n_missing"))
+```
+
+`year=2010:2024` 表示连续年份，`year=c(2010,2024)` 仅选两年。鱼种用 FAO 代码（如 YFT/BET/SKJ），RFMO 渔具用标准组（如 longline/purse_seine/pole_and_line）。GFW 保留其原生分类（如 drifting_longlines/tuna_purse_seines）；可先查看 `unique(subset(available, source == "gfw")$gear_group)`。GFW 的鱼种筛选会明确报错，避免把捕鱼活动误当成特定鱼种。`include_partial=FALSE` 排除已标记的 GFW 未完整年，不给 RFMO 记录推断“全年覆盖完整”。
+
+`source_years` 列出各 RFMO 产品每年源记录数和展开记录数；`coverage` 列出标准化后的来源/年份/鱼种/渔具/单位及缺值数量；`gfw_coverage` 列出每份报告的实际日期范围。无记录的年份不补零。固定 `run=` 可锁定一次完整处理结果；复制完整运行目录（包含子目录）及 `latest.json` 后可在 Drive、本地或 NAS 用同一接口调用。直接读取所有历史 native 表可能需要大量内存，通常应先筛年份/来源。
+
 ## 运行和读取
 
 ```bash
@@ -38,13 +76,17 @@ source("/你的代码目录/tuna_data/examples/r_spatial_workflow.R")
 
 Python 对应接口为 `tuna_data.spatial.build_spatial()` 和 `read_spatial()`。`path=` 优先于环境变量。换电脑需要复制完整库，或至少复制完整的 `processed/spatial/` 来读取已有结果；重建还需要对应的 `manifest.json` 和原始快照。`mirror/backup` 仅管理原始库，派生结果需单独复制。不要只复制 `latest.json`。
 
-每次构建生成独立的 `Spatial_.../` 目录：原始来源的 SHA-256、下载日期、ZIP 成员、源文件行号、转换程序校验值、输出校验值和 `recipe.lock.toml`。仅成功后才更新 `latest.json`。论文分析建议固定 `run`；要重建相同来源，传入该运行的锁定配置。换年份可以复制 TOML 修改 `start_year`、`end_year`；只做 RFMO 数据可设 `gfw_rfmos = []`。GFW 此模板使用已有完整年度、逐月、未加额外过滤的 0.1° 报告；不把当前未完结年份当作完整年度。
+每次构建生成独立的 `Spatial_.../` 目录：原始来源的 SHA-256、下载日期、ZIP 成员、源文件行号、转换程序校验值、输出校验值和 `recipe.lock.toml`。仅成功后才更新 `latest.json`。论文分析建议固定 `run`；要重建相同来源，传入该运行的锁定配置。换年份可以复制 TOML 修改 `start_year`、`end_year`；只做 RFMO 数据可设 `gfw_rfmos = []`。2024 示例使用已有完整年度、逐月、未加额外过滤的 0.1° 报告；全历史配置另外保留有明确日期范围的未完整年。更新 Python 接口后请重启 R，再调用新增参数。
 
 ## 输出表
 
 | 表名 | 粒度和用途 |
 |---|---|
 | `rfmo_native` | 所选年份/鱼种的来源原始时间与网格粒度；测量值长表，渔获与努力量分行 |
+| `coverage` | 可用的来源、年份、鱼种、渔具、单位、口径，以及记录/缺值计数 |
+| `source_years` | 各 RFMO 产品逐年输入行数及展开后测量行数 |
+| `gfw_native` | 跨所有报告的逻辑明细表；按 RFMO/年筛选读取对应文件，不叠加重叠区域 |
+| `gfw_coverage` | 每个 RFMO/年份的实际报告日期范围、完整/未完整年标记和记录数 |
 | `global_catch_cells` | 全球来源集合，年度 5° 网格，来源 × 产品 × 鱼种 × 渔具 × 单位 × 统计口径分开 |
 | `pacific_catch_cells` | 同上，保留互补的 IATTC EPO、WCPFC WCPO；CCSBT 明确标为 Pacific 的 SBF 记录可加入 |
 | `rfmo_effort_cells` | 努力量的 5° 网格视图；钩数、网次、作业日和各来源原始单位分开 |

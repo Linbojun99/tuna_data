@@ -147,6 +147,19 @@ tuna-data build --config templates/annual_catch.toml
 
 [空间模板与字段说明](docs/spatial_pipeline.md) · [空间配置](templates/spatial_2024.toml) · [可直接运行的 R 清洗及绘图示例](examples/r_spatial_workflow.R)
 
+**全部可用年份**：[历史配置](templates/spatial_all_years.toml) · [历史构建及 R 筛选示例](examples/r_spatial_all_years.R)。运行 `tuna-data build-spatial --config templates/spatial_all_years.toml` 自动处理各来源现有全部年份，包含明确标记日期范围的 GFW 当前年部分。结果按年保存，筛选在读取阶段完成，原始粒度明细完整保留。
+
+```r
+source("/你的代码目录/tuna_data/examples/r_spatial_all_years.R")
+available <- tuna_spatial_catalog()
+yft <- tuna_spatial("global_catch_cells", year = 2000:2025,
+                    species = "YFT", gear = c("longline", "purse_seine"), unit = "tonnes")
+gfw <- tuna_spatial("gfw_cells", year = 2020:2026, rfmo = "IOTC",
+                    gear = "drifting_longlines", include_partial = FALSE)
+```
+
+`source_years` / `gfw_coverage` 记录实际覆盖年份与日期；GFW 不支持鱼种筛选，RFMO 与 GFW 的渔具代码可从 `available` 查看。`TUNA_DATA_HOME`、`path=` 和固定 `run=` 的使用方式不变；迁移时复制整个运行目录及其子目录。
+
 ```r
 source("/你的代码目录/tuna_data/examples/r_spatial_workflow.R")
 # 或先 source("/你的代码目录/tuna_data/R/tuna_data.R") 后单独读取：

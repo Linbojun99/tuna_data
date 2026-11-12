@@ -65,8 +65,20 @@ tuna_spatial_build <- function(config = NULL, path = NULL, output = NULL) {
   pipeline$build_spatial(config = config, library = db, output = output)
 }
 
-tuna_spatial <- function(table = "global_catch_cells", run = NULL, path = NULL) {
+tuna_spatial <- function(table = "global_catch_cells", run = NULL, path = NULL,
+                         year = NULL, species = NULL, gear = NULL, source = NULL,
+                         rfmo = NULL, unit = NULL, measure = NULL, columns = NULL,
+                         include_partial = TRUE, verify = TRUE) {
   db <- tuna_library(path)
   pipeline <- reticulate::import("tuna_data.spatial", convert = TRUE)
-  pipeline$read_spatial(table, run = run, library = db)
+  values <- function(x) if (is.null(x)) NULL else as.list(x)
+  pipeline$read_spatial(table, run = run, library = db,
+    year = values(year), species = values(species), gear = values(gear), source = values(source),
+    rfmo = values(rfmo), unit = values(unit), measure = values(measure), columns = values(columns),
+    include_partial = include_partial, verify = verify)
+}
+
+# Available years/species/gears and source coverage; much smaller than native data.
+tuna_spatial_catalog <- function(run = NULL, path = NULL) {
+  tuna_spatial("coverage", run = run, path = path)
 }

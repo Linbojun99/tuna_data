@@ -64,9 +64,9 @@ out_dir <- path.expand(Sys.getenv("TUNA_SPATIAL_OUT", unset = file.path(repo_dir
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 # 所有鱼种/渔具仍保存在结果表。下述图只选择黄鳍（默认）、延绳钓和围网。
-global_cells <- tuna_spatial("global_catch_cells", run = run_dir)
-pacific_cells <- tuna_spatial("pacific_catch_cells", run = run_dir)
-quality <- tuna_spatial("rfmo_quality", run = run_dir)
+global_cells <- tuna_spatial("global_catch_cells", run = run_dir, year = year, species = species)
+pacific_cells <- tuna_spatial("pacific_catch_cells", run = run_dir, year = year, species = species)
+quality <- tuna_spatial("rfmo_quality", run = run_dir, year = year)
 source_inventory <- tuna_spatial("source_inventory", run = run_dir)
 catch <- global_cells[global_cells$year == year & global_cells$species_code == species & global_cells$unit == "tonnes", ]
 if (!nrow(catch)) stop("所选年份和鱼种没有可绘制的吨数记录。")
@@ -186,7 +186,7 @@ p_pacific <- if (length(pacific_panels)) patchwork::wrap_plots(pacific_panels, n
 p_gfw <- NULL
 gfw_plot_cells <- NULL
 if ("gfw_cells" %in% names(input_meta$outputs)) {
-  gfw <- tuna_spatial("gfw_cells", run = run_dir)
+  gfw <- tuna_spatial("gfw_cells", run = run_dir, year = year)
   gfw <- gfw[gfw$year == year, ]
   if (nrow(gfw)) {
     if (anyNA(gfw$value)) stop("GFW 小时存在缺失，不能按完整年度合计。")

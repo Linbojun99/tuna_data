@@ -1,0 +1,8 @@
+# Use every year present in the selected latest RFMO products and saved GFW reports.
+# start_year/end_year are ignored when all_years=true; source coverage is recorded.
+[spatial]
+all_years = true
+include_partial_gfw = true
+species = ["YFT", "BET", "SKJ", "ALB", "PBF", "BFT", "SBF"]
+gfw_rfmos = ["IATTC", "WCPFC", "ICCAT", "IOTC", "CCSBT"]
+gfw_grid_degrees = 1

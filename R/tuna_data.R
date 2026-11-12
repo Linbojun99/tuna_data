@@ -57,3 +57,16 @@ tuna_summarise <- function(data, by = c("year", "species_code", "gear_group", "c
   pipeline <- reticulate::import("tuna_data.pipeline", convert = TRUE)
   pipeline$aggregate_catch(data, by = as.list(by))
 }
+
+# Spatial recipes preserve native records and create separate catch/effort/activity layers.
+tuna_spatial_build <- function(config = NULL, path = NULL, output = NULL) {
+  db <- tuna_library(path)
+  pipeline <- reticulate::import("tuna_data.spatial", convert = TRUE)
+  pipeline$build_spatial(config = config, library = db, output = output)
+}
+
+tuna_spatial <- function(table = "global_catch_cells", run = NULL, path = NULL) {
+  db <- tuna_library(path)
+  pipeline <- reticulate::import("tuna_data.spatial", convert = TRUE)
+  pipeline$read_spatial(table, run = run, library = db)
+}

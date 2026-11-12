@@ -1,0 +1,11 @@
+# Full native records for the selected period; raw source files remain complete.
+# Change years to build a different period. GFW needs saved full-year reports.
+[spatial]
+start_year = 2024
+end_year = 2024
+species = ["YFT", "BET", "SKJ", "ALB", "PBF", "BFT", "SBF"]
+gfw_rfmos = ["IATTC", "WCPFC", "ICCAT", "IOTC", "CCSBT"]
+gfw_grid_degrees = 1
+
+# For RFMO-only work use gfw_rfmos = []. Each successful run writes a pinned
+# recipe.lock.toml. Rebuild that file to use identical source snapshots.

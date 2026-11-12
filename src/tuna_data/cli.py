@@ -20,6 +20,9 @@ def main(argv=None):
     p = sub.add_parser("build")
     p.add_argument("--config", help="Annual catch recipe TOML; default builds global and Pacific tables")
     p.add_argument("--output", help="Output parent directory; default <library>/processed/annual")
+    p = sub.add_parser("build-spatial")
+    p.add_argument("--config", help="Spatial recipe TOML; default 2024, seven tuna species and five GFW regions")
+    p.add_argument("--output", help="Output parent directory; default <library>/processed/spatial")
     p = sub.add_parser("discover")
     p.add_argument("source", choices=list(LANDINGS) + ["all"])
     p = sub.add_parser("update")
@@ -61,6 +64,9 @@ def main(argv=None):
         elif args.command == "build":
             from .pipeline import build_annual
             print(json.dumps(build_annual(args.config, library=lib, output=args.output), ensure_ascii=False, indent=2))
+        elif args.command == "build-spatial":
+            from .spatial import build_spatial
+            print(json.dumps(build_spatial(args.config, library=lib, output=args.output), ensure_ascii=False, indent=2))
         elif args.command == "discover":
             products = []
             for source in LANDINGS if args.source == "all" else [args.source]:

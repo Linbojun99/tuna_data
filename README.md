@@ -15,6 +15,7 @@ RFMO 官网 / GFW API / 已有下载文件
        ├── manifest.json       来源、版本、日期、SHA-256
        ├── raw/                完整原始文件，可读名称与版本校验值
        ├── processed/annual/   标准化、合并结果与可复现版本锁
+       ├── processed/spatial/  原始粒度空间明细、网格渔获/努力量、GFW 活动层
        ├── gfw_dataset.json    GFW 版本及可用时间范围
        └── gfw_sync_status.json
                   ↓
@@ -141,6 +142,21 @@ tuna-data build --config templates/annual_catch.toml
 结果默认存于私有 `library/processed/annual/`，每次生成独立目录和 `recipe.lock.toml`。R 中用 `tuna_processed("global_by_gear")` 读取最近一次成功结果，或传 `run = result$run_dir` 固定某一次。`TUNA_DATA_HOME` 和 `path=` 的 Drive/NAS 路径规则不变。迁移派生结果时复制完整 `processed/` 或在目标库重新构建；原有 `mirror/backup` 管理的是原始库。
 
 **合并表保留 `catch_basis`**：保留渔获、登陆量、丢弃量和 WCPFC 年鉴口径不能默认混加为同口径全球总量。空白不会变成零，未识别渔具代码不会被删掉。最新年份的来源不足会明确标记，详见方法文档。
+
+## 空间分布数据与地图
+
+[空间模板与字段说明](docs/spatial_pipeline.md) · [空间配置](templates/spatial_2024.toml) · [可直接运行的 R 清洗及绘图示例](examples/r_spatial_workflow.R)
+
+```r
+source("/你的代码目录/tuna_data/examples/r_spatial_workflow.R")
+# 或先 source("/你的代码目录/tuna_data/R/tuna_data.R") 后单独读取：
+global_cells <- tuna_spatial("global_catch_cells")
+pacific_cells <- tuna_spatial("pacific_catch_cells")
+effort_cells <- tuna_spatial("rfmo_effort_cells")
+gfw_cells <- tuna_spatial("gfw_cells")
+```
+
+默认从完整原始库构建 2024 年、七种金枪鱼的空间明细和网格表；年份可在 TOML 调整。支持 `tuna-data build-spatial --config templates/spatial_2024.toml` 和 R 的 `tuna_spatial_build()`。保留原始时间/网格分辨率、鱼种、渔具、单位、缺失/保密标记和来源行；捕捞吨数、尾数、努力量与 GFW 小时分开。空间来源不等同于年度总量，GFW RFMO 区域也不能重叠相加。地图提供全球来源面板、太平洋分区面板和独立 GFW 面板，只显示海岸线。
 
 ## GFW 历史数据和最新补下载
 

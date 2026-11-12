@@ -254,13 +254,15 @@ catch_nas <- tuna_read("iattc/catchbyflaggear", path = nas_dir)
 ```r
 # 首次缺少绘图依赖时安装
 install.packages(c("ggplot2", "sf", "rnaturalearth", "rnaturalearthdata",
-                   "ragg", "systemfonts", "jsonlite"))
+                   "ragg", "svglite", "systemfonts", "jsonlite"))
 
 source("/你的代码目录/tuna_data/examples/r_plot_catch_and_gfw.R")
 # R 中保留 p_yft、p_gfw、annual_yft 和 gfw_grid，可继续修改图形或分析。
 ```
 
-默认输出到代码仓库的 `reports/figures/`，包括两张 300 dpi PNG、两个汇总 CSV、`plot_provenance.json`（数据 ID、SHA-256、请求参数、汇总检查）及 R 环境记录。输出目录已被 Git 忽略。原始数据库文件保持不变。
+默认输出到代码仓库的 `reports/figures/`，包括两张 600 dpi PNG、两张可编辑文字的 SVG、两个汇总 CSV、`plot_provenance.json`（数据 ID、SHA-256、请求参数、汇总检查、绘图样式）及 R 环境记录。输出目录已被 Git 忽略。原始数据库文件保持不变。
+
+绘图默认采用简洁的 Nature/Science 风格：英文图题、坐标轴及图例，白底、细线、统一无衬线字体，图宽 183 mm；地图先合并陆地多边形，仅绘制海岸线，不显示国境线。年度曲线使用蓝色，活动地图使用色觉友好的 cividis 连续色标。项目约定记录在 [AGENTS.md](AGENTS.md)，设计参考 [Nature 图形指南](https://research-figure-guide.nature.com/figures/preparing-figures-our-specifications/)；具体投稿时再按目标期刊调整尺寸与字号。
 
 可在运行前修改区域、完整年份、展示网格和输出路径：
 

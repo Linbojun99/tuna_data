@@ -3,7 +3,7 @@
 # 只读取完整的本地/Drive/NAS 数据库，不请求 GFW API，不需要 token。
 # 首次需安装 R 包：
 # install.packages(c("reticulate", "ggplot2", "sf", "rnaturalearth",
-#                    "rnaturalearthdata", "ragg", "systemfonts", "jsonlite"))
+#                    "rnaturalearthdata", "ragg", "svglite", "systemfonts", "jsonlite"))
 
 # 可选参数（在 source() 前设置）；默认延续读取示例中的 IOTC 2024 年。
 # Sys.setenv(TUNA_PLOT_RFMO = "IOTC", TUNA_PLOT_YEAR = "2024")
@@ -21,7 +21,7 @@ if (is.null(script_file)) {
 if (is.null(script_file) || !file.exists(script_file)) stop("请用 source(完整路径) 或 Rscript 运行本脚本。")
 repo_dir <- normalizePath(file.path(dirname(script_file), ".."), winslash = "/")
 source(file.path(repo_dir, "R", "tuna_data.R"), local = TRUE)
-required <- c("reticulate", "ggplot2", "sf", "rnaturalearth", "rnaturalearthdata", "ragg", "systemfonts", "jsonlite")
+required <- c("reticulate", "ggplot2", "sf", "rnaturalearth", "rnaturalearthdata", "ragg", "svglite", "systemfonts", "jsonlite")
 missing <- required[!vapply(required, requireNamespace, logical(1L), quietly = TRUE)]
 if (length(missing)) stop("请先安装缺少的 R 包：install.packages(c(", paste(sprintf('"%s"', missing), collapse = ", "), "))")
 
@@ -53,20 +53,27 @@ if (!is.finite(grid_deg) || !grid_deg %in% c(0.5, 1, 2, 5)) stop("展示网格�
 output_dir <- path.expand(Sys.getenv("TUNA_PLOT_OUT", unset = file.path(repo_dir, "reports", "figures")))
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
-# 中文字体；无中文字体的机器自动使用英文图注，避免方框乱码。
-font_candidates <- c("PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "WenQuanYi Zen Hei", "Arial Unicode MS")
+# 本项目绘图约定：英文标注、白底细线、无国境线；采用简洁的期刊图形样式。
+# 字号按最终 183 mm 图宽设置；SVG 保留可编辑文字，PNG 用于直接预览。
+font_candidates <- c("Arial", "Helvetica", "Liberation Sans", "DejaVu Sans")
 available_fonts <- unique(systemfonts::system_fonts()$family)
 matched_fonts <- font_candidates[font_candidates %in% available_fonts]
-chinese <- length(matched_fonts) > 0L
-font_family <- if (chinese) matched_fonts[[1L]] else "sans"
-txt <- function(zh, en) if (chinese) zh else en
+font_family <- if (length(matched_fonts)) matched_fonts[[1L]] else "sans"
 fmt <- function(x) formatC(x, format = "f", digits = 0L, big.mark = ",")
-base_theme <- theme_minimal(base_size = 13, base_family = font_family) +
-  theme(plot.title = element_text(size = 18, face = "bold", colour = "#20343D"),
-        plot.subtitle = element_text(size = 11, colour = "#52626B", margin = margin(b = 14)),
-        plot.caption = element_text(size = 9.5, colour = "#52626B", hjust = 0, margin = margin(t = 12)),
-        panel.grid.minor = element_blank(), panel.grid.major = element_line(colour = "#E2E8EC", linewidth = .3),
-        axis.title = element_text(colour = "#34454F"), plot.margin = margin(15, 20, 14, 14))
+base_theme <- theme_classic(base_size = 8, base_family = font_family) +
+  theme(text = element_text(colour = "#222222"),
+        plot.title = element_text(size = 10, face = "plain", margin = margin(b = 5)),
+        plot.subtitle = element_text(size = 7.5, margin = margin(b = 10)),
+        plot.caption = element_text(size = 6.5, hjust = 0, lineheight = 1.15, margin = margin(t = 10)),
+        plot.title.position = "plot", plot.caption.position = "plot",
+        panel.grid = element_blank(),
+        axis.line = element_line(colour = "#333333", linewidth = .25),
+        axis.ticks = element_line(colour = "#333333", linewidth = .25),
+        axis.ticks.length = grid::unit(1.2, "mm"),
+        axis.text = element_text(size = 7.5, colour = "#222222"),
+        axis.title = element_text(size = 8),
+        legend.title = element_text(size = 7.5), legend.text = element_text(size = 7),
+        plot.margin = margin(8, 10, 8, 8))
 
 # 一、完整读取 IATTC 表，按年份求和；不合并其他 RFMO、不填补缺失值。
 catch_id <- "iattc/catchbyflaggear"
@@ -81,19 +88,17 @@ names(annual_yft) <- c("year", "catch_tonnes")
 annual_yft <- merge(data.frame(year = seq.int(min(annual_yft$year), max(annual_yft$year))), annual_yft, by = "year", all.x = TRUE)
 stopifnot(isTRUE(all.equal(sum(annual_yft$catch_tonnes, na.rm = TRUE), sum(yft$t), tolerance = 1e-10)))
 latest <- tail(annual_yft[!is.na(annual_yft$catch_tonnes), ], 1L)
-latest$label <- paste0(latest$year, txt(" 年：", ": "), fmt(latest$catch_tonnes), txt(" 吨", " t"))
+latest$label <- paste0(latest$year, ": ", fmt(latest$catch_tonnes), " t")
 p_yft <- ggplot(annual_yft, aes(year, catch_tonnes)) +
-  geom_area(fill = "#287782", alpha = .09) +
-  geom_line(colour = "#216F7A", linewidth = .85) +
-  geom_point(data = latest, colour = "#B24D32", size = 2.8) +
-  geom_text(data = latest, aes(label = label), hjust = 1, vjust = -1.1, colour = "#993E29", size = 4.1, family = font_family) +
+  geom_line(colour = "#0072B2", linewidth = .4) +
+  geom_point(data = latest, colour = "#0072B2", size = 1.5) +
+  geom_text(data = latest, aes(label = label), hjust = 1, vjust = -1.2, colour = "#222222", size = 2.65, family = font_family) +
   scale_x_continuous(breaks = seq(1920, max(annual_yft$year), by = 20), expand = expansion(mult = c(.01, .02))) +
   scale_y_continuous(labels = scales::label_number(big.mark = ",", accuracy = 1), limits = c(0, NA), expand = expansion(mult = c(0, .15))) +
-  labs(title = txt("东太平洋黄鳍金枪鱼：年度保留渔获量", "Eastern Pacific yellowfin tuna: annual retained catch"),
-       subtitle = paste0("IATTC  |  ", min(annual_yft$year), "–", max(annual_yft$year), txt("  |  各船旗、渔具合计", "  |  All flags and gears combined")),
-       x = txt("年份", "Year"), y = txt("保留渔获量（吨）", "Retained catch (metric tonnes)"),
-       caption = txt("来源：IATTC CatchByFlagGear；原表中的 0 表示低于 0.5 吨。\n按源文件逐年求和；未平滑，未对历史统计口径变化作校正。",
-                     "Source: IATTC CatchByFlagGear. Source zeros mean less than 0.5 t.\nAnnual sums as reported; no smoothing or adjustment for historical reporting changes.")) + base_theme
+  labs(title = "Annual yellowfin tuna catch",
+       subtitle = paste0("Eastern Pacific  |  IATTC  |  ", min(annual_yft$year), "–", max(annual_yft$year), "  |  All flags and gears"),
+       x = "Year", y = "Retained catch (metric tonnes)",
+       caption = "Source: IATTC CatchByFlagGear. Source zeros mean less than 0.5 t.\nAnnual sums as reported; no smoothing or adjustment for historical reporting changes.") + base_theme
 
 # 二、选择无额外过滤、包含完整 12 个月的 GFW 月度 0.1° 报告。
 catalogue <- tuna_catalog()
@@ -142,6 +147,12 @@ unlink(geo_dir, recursive = TRUE)
 if (is.na(sf::st_crs(rfmo_boundary))) stop("区域几何缺少坐标系。")
 rfmo_boundary <- sf::st_transform(rfmo_boundary, 4326)
 world <- rnaturalearth::ne_countries(scale = 110, returnclass = "sf")
+# 仅为底图拓扑合并临时移除 CRS，使用平面 GEOS 运算，规避 s2 对该底图的环校验问题。
+# 合并后恢复经纬度 CRS；不用于任何距离或面积计算，也不改变活动数据。
+# 只画合并陆地的外缘，不能直接描绘 ne_countries() 的每个国家边界。
+land_geometry <- sf::st_union(sf::st_make_valid(sf::st_set_crs(sf::st_geometry(world), NA)))
+stopifnot(length(land_geometry) == 1L, all(sf::st_is_valid(land_geometry)))
+land <- sf::st_sf(geometry = sf::st_set_crs(land_geometry, 4326))
 bbox <- sf::st_bbox(rfmo_boundary)
 x_limits <- c(max(-180, min(bbox[["xmin"]], min(gfw_grid$grid_lon) - grid_deg / 2) - 3),
               min(180, max(bbox[["xmax"]], max(gfw_grid$grid_lon) + grid_deg / 2) + 3))
@@ -150,33 +161,39 @@ y_limits <- c(max(-85, min(bbox[["ymin"]], min(gfw_grid$grid_lat) - grid_deg / 2
 gfw_version <- gfw_record$provenance$request[["datasets[0]"]]
 p_gfw <- ggplot() +
   geom_tile(data = positive_grid, aes(grid_lon, grid_lat, fill = fishing_hours), width = grid_deg, height = grid_deg) +
-  geom_sf(data = world, fill = "#E3E6E7", colour = "#AAB4B9", linewidth = .2) +
-  geom_sf(data = rfmo_boundary, fill = NA, colour = "#3F5867", linewidth = .4, linetype = "dashed") +
-  scale_fill_viridis_c(option = "C", trans = "log10", breaks = c(.1, 1, 10, 100, 1000, 10000, 100000),
-                       labels = scales::label_number(big.mark = ",", accuracy = .1),
-                       name = txt(paste0("捕鱼活动时数\n小时 / ", grid_deg, "° 网格"), paste0("Fishing hours\nper ", grid_deg, "° cell"))) +
+  geom_sf(data = land, fill = "#EAEAEA", colour = "#777777", linewidth = .15) +
+  scale_fill_viridis_c(option = "E", trans = "log10", breaks = c(.1, 1, 10, 100, 1000, 10000, 100000),
+                       labels = function(x) vapply(x, format, character(1L), trim = TRUE, scientific = FALSE, big.mark = ","),
+                       name = paste0("Fishing hours\nper ", grid_deg, "° cell"),
+                       guide = guide_colourbar(barheight = grid::unit(42, "mm"), barwidth = grid::unit(3.5, "mm"),
+                                               ticks.colour = "#555555", frame.colour = "#555555", frame.linewidth = .2)) +
   coord_sf(crs = sf::st_crs(4326), default_crs = sf::st_crs(4326), xlim = x_limits, ylim = y_limits, expand = FALSE) +
-  labs(title = txt(paste0("GFW 捕鱼活动空间分布：", gfw_rfmo, "，", gfw_year), paste0("GFW apparent fishing activity: ", gfw_rfmo, ", ", gfw_year)),
-       subtitle = txt(paste0("完整年度报告  |  ", grid_deg, "° 网格求和  |  所有船旗与渔具  |  对数色标"),
-                      paste0("Complete annual report  |  ", grid_deg, "° sums  |  All flags and gears  |  Log colour scale")),
-       x = txt("经度", "Longitude"), y = txt("纬度", "Latitude"),
-       caption = txt(paste0("来源：GFW ", sub(".*:", "", gfw_version), "；虚线为报告附带的 RFMO 边界；陆地：Natural Earth。\n原始 0.1° 网格按中心点归并；未按面积标准化。空白不表示无捕鱼，AIS 覆盖并不完整。"),
-                     paste0("Source: GFW ", sub(".*:", "", gfw_version), "; dashed line: RFMO boundary from report; land: Natural Earth.\nNative 0.1° cells grouped by reported centres; not area-normalized. Blank is not zero fishing; AIS coverage is incomplete."))) +
-  base_theme + theme(panel.background = element_rect(fill = "#F5F7FA", colour = NA),
-                     panel.grid.major = element_line(colour = "#D6DDE2", linewidth = .25),
-                     legend.title = element_text(size = 11), legend.text = element_text(size = 10),
-                     legend.key.height = grid::unit(1.3, "cm"))
+  labs(title = paste0("Apparent fishing activity in the ", gfw_rfmo, " region"),
+       subtitle = paste0("GFW  |  ", gfw_year, "  |  ", grid_deg, "° annual sums  |  All flags and gears  |  Log colour scale"),
+       x = "Longitude", y = "Latitude",
+       caption = paste0("Source: GFW ", sub(".*:", "", gfw_version), "; land: Natural Earth.\n",
+                        "Native 0.1° cells grouped by reported centres; not area-normalized.\n",
+                        "Blank areas do not imply zero fishing; AIS coverage is incomplete.")) +
+  base_theme + theme(panel.background = element_rect(fill = "white", colour = NA),
+                     panel.border = element_rect(fill = NA, colour = "#333333", linewidth = .25),
+                     axis.line = element_blank(), legend.margin = margin(l = 5))
 
 # 图片和派生表默认放在被 Git 忽略的 reports/figures/；原始文件保持不变。
 catch_png <- file.path(output_dir, "iattc_yft_annual_catch.png")
 gfw_stem <- paste0("gfw_", tolower(gfw_rfmo), "_", gfw_year, "_activity_", grid_deg, "deg")
 gfw_png <- file.path(output_dir, paste0(gfw_stem, ".png"))
-ggsave(catch_png, p_yft, device = ragg::agg_png, width = 10.5, height = 5.8, dpi = 300, bg = "white")
-ggsave(gfw_png, p_gfw, device = ragg::agg_png, width = 11.2, height = 8.2, dpi = 300, bg = "white")
+ggsave(catch_png, p_yft, device = ragg::agg_png, width = 183, height = 105, units = "mm", dpi = 600, bg = "white")
+ggsave(gfw_png, p_gfw, device = ragg::agg_png, width = 183, height = 145, units = "mm", dpi = 600, bg = "white")
+ggsave(sub("[.]png$", ".svg", catch_png), p_yft, device = svglite::svglite, width = 183, height = 105, units = "mm", bg = "white")
+ggsave(sub("[.]png$", ".svg", gfw_png), p_gfw, device = svglite::svglite, width = 183, height = 145, units = "mm", bg = "white")
 write.csv(annual_yft, file.path(output_dir, "iattc_yft_annual_catch.csv"), row.names = FALSE, na = "")
 write.csv(gfw_grid, file.path(output_dir, paste0(gfw_stem, ".csv")), row.names = FALSE, na = "")
 metadata <- list(
   created_at = format(Sys.time(), tz = "UTC", usetz = TRUE),
+  figure_style = list(language = "en", font_family = font_family, national_borders = FALSE,
+                       land_layer = "Natural Earth 110m countries dissolved into one land geometry",
+                       map_palette = "cividis", width_mm = 183, png_dpi = 600,
+                       formats = c("PNG", "SVG")),
   iattc = list(id = catch_id, sha256 = catch_record$sha256, source_url = catch_record$source_url,
                input_yft_rows = nrow(yft), year_range = range(annual_yft$year), latest = latest[c("year", "catch_tonnes")],
                method = "Sum retained-catch tonnes over flags and gears within year; source zeros mean <0.5 t"),

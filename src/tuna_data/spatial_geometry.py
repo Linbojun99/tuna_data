@@ -22,17 +22,28 @@ def rectangle(west, south, width, height):
                 west=west, south=south, grid_width=width, grid_height=height, geometry_status="located")
 
 
-def cwp_iotc(code):
-    """IOTC 7-digit CWP: grid type, quadrant, absolute origin-facing corner.
+# IOTC grid size codes in degrees of latitude x longitude, as defined by the IOTC
+# Secretariat's CWP library (github.com/iotc-secretariat/iotc-lib-core-gis-cwp,
+# CL_FISHING_GROUND_TYPE: 1 = 30x30, 2 = 10x20, 3 = 10x10, 4 = 20x20, 5 = 1x1,
+# 6 = 5x5). IOTC's 2026 DATA06 code list gives the same 30x30 cell for Iran's
+# gillnet code 9100030 (0-30N, 30-60E) that CE codes as 1100030. Do not substitute
+# other tables: the "IOTC Size Frequency Statistics Data" NOTES sheet bundled with
+# the CE reference workbook lists 5x10 = 1, which does not apply to CE codes.
+IOTC_GRID_SIZES = {"1": (30, 30), "2": (10, 20), "3": (10, 10),
+                   "4": (20, 20), "5": (1, 1), "6": (5, 5)}
 
-    Type 4 is IOTC's 20x20 convention. Quadrant 4 is NW (negative longitude).
-    Irregular/non-grid fishing-ground codes remain unlocated, never (0, 0).
+
+def cwp_iotc(code):
+    """IOTC 7-digit grid code: size, quadrant, then the corner nearest (0, 0).
+
+    Sizes follow IOTC_GRID_SIZES (IOTC's own table). Quadrant 4 is NW
+    (negative longitude). Irregular/non-grid fishing-ground codes remain
+    unlocated, never (0, 0).
     """
     code = str(code).strip()
     if not re.fullmatch(r"[1-6][1-4][0-9]{5}", code):
         return rectangle(pd.NA, pd.NA, pd.NA, pd.NA)
-    height, width = {"1": (30, 30), "2": (10, 20), "3": (10, 10),
-                     "4": (20, 20), "5": (1, 1), "6": (5, 5)}[code[0]]
+    height, width = IOTC_GRID_SIZES[code[0]]
     quadrant, lat, lon = int(code[1]), int(code[2:4]), int(code[4:7])
     if lon >= 180 or lat >= 90:
         raise ValueError(f"Out-of-range CWP grid: {code}")

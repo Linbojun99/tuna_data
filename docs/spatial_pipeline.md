@@ -105,7 +105,7 @@ Python 对应接口为 `tuna_data.spatial.build_spatial()` 和 `read_spatial()`�
 |---|---|---|
 | IATTC | LL 重量优先表、PS 按船旗表、LP 按船旗表；经纬度是 5°/1° 网格中心 | 保留渔获吨数；LL 只有尾数的记录另存 `fish` 残余口径，不换算重量；不叠加重量/尾数优先两视图或 PS 船旗/作业类型两视图 |
 | WCPFC | LL 月/船旗 5°，PS 与 LP 季度/船旗 1°；坐标是网格西南角 | 季度不展开成三个相同月份；HHOOKS × 100 为钩数；DAYS 不随鱼种重复。空船旗或整条测量全零的层保守标为遮蔽/不确定，保留原始零，不当作观测零 |
-| IOTC | CE 中 CA 与 EF 分开；7 位 CWP 码解码 | MT 与 NO 分别为吨和尾数；EF 不与每个鱼种重复连接。CWP 用靠近赤道/本初子午线的角点及象限；不规则区域保留为未定位 |
+| IOTC | CE 中 CA 与 EF 分开；7 位 CWP 码解码 | MT 与 NO 分别为吨和尾数；EF 不与每个鱼种重复连接。CWP 用靠近赤道/本初子午线的角点及象限；尺寸码按 IOTC 秘书处的网格定义（[iotc-lib-core-gis-cwp](https://github.com/iotc-secretariat/iotc-lib-core-gis-cwp)）：1 = 30°×30°、2 = 10°×20°、3 = 10°×10°、4 = 20°×20°、5 = 1°×1°、6 = 5°×5°（纬度×经度）。CE-Reference 工作簿随附的体长数据说明（NOTES 页写 5°×10° = 1）不适用于 CE 代码。不规则区域保留为未定位 |
 | ICCAT | 最新已下载的 CATDIS all-species 发布，使用表中 5° 中心点 | Raised 至 nominal catches 的空间估计，包括登陆量与死亡丢弃；独立口径。季度保留；不叠加按鱼种 ZIP。锁定配置优先于最新发布 |
 | CCSBT | CatchByYMGOLoLa；坐标为 5° 网格西北角 | 仅 SBF，吨数；无位置记录保留但不画入网格。只有来源明确写 Pacific 才进入太平洋表 |
 | GFW | 已保存的 0.1° 月度 FLAGANDGEARTYPE 报告 | 保留报告坐标；按坐标向下取整分箱至展示网格，不推断原生裁切格子的精确边界，不做面积归一化；保存响应中的真实 RFMO GeoJSON |

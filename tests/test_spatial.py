@@ -43,6 +43,25 @@ def test_coarse_grids_and_pacific_overlap_are_retained_but_not_split_or_added():
     assert pd.isna(out.iloc[0].map_lon)
 
 
+def test_iotc_grid_sizes_follow_iotc_cwp_library_not_the_sf_notes_table():
+    # iotc-lib-core-gis-cwp: 1=30x30, 2=10x20, 3=10x10, 4=20x20, 5=1x1, 6=5x5 (lat x lon).
+    # The SF readme bundled with the CE reference says 5x10 = 1; CE codes do not use it.
+    expected = {"1": (30, 30), "2": (10, 20), "3": (10, 10), "4": (20, 20), "5": (1, 1), "6": (5, 5)}
+    for size, (height, width) in expected.items():
+        cell = cwp_iotc(size + "120040")
+        assert (cell["grid_height"], cell["grid_width"]) == (height, width)
+        assert (cell["south"], cell["west"]) == (20, 40)
+    # A 30x30 cell grows away from (0, 0) in every quadrant.
+    corners = {"1110030": (10, 30), "1210030": (-40, 30), "1310030": (-40, -60), "1410030": (10, -60)}
+    for code, (south, west) in corners.items():
+        cell = cwp_iotc(code)
+        assert (cell["south"], cell["west"], cell["grid_height"], cell["grid_width"]) == (south, west, 30, 30)
+    # Iran's CE code 1100030 = IOTC's 30x30 cell 0-30N, 30-60E (DATA06 twin: 9100030).
+    cell = cwp_iotc("1100030")
+    assert (cell["south"], cell["west"], cell["lat"], cell["lon"]) == (0, 30, 15, 45)
+    assert grid_status(pd.DataFrame([cell])).grid_status.iloc[0] == "coarser_or_misaligned"
+
+
 def test_wcpfc_masking_quarters_and_effort_not_repeated_per_species():
     row = dict(YY="2024", MM="1", flag_code="JP", LAT5="05S", LON5="175E", cwp_grid="test",
                HHOOKS="2", YFT_C="0", YFT_N="0", BET_C="4", BET_N="8")

@@ -21,6 +21,7 @@
 | 换电脑，使用 Google Drive 或 NAS | [5. 存储与迁移](#storage-and-migration) |
 | 画年度趋势图和空间分布图 | [6. 绘图与输出](#plotting) |
 | 查询资源评估模型、参考点和参数 | [资源评估图文手册](docs/assessment_database.md) · [可运行 R 示例](examples/r_assessment_database.R) |
+| 为 CPUE 标准化或 SDM 准备分物种的清洗数据 | [模型前数据准备手册](docs/modelprep.md) · [可运行 R 示例](examples/r_modelprep.R) |
 | 查来源、排错或使用 Python / 命令行 | [7. 来源与范围](#sources) · [8. 常见问题](#troubleshooting) · [9. 进阶参考](#reference) |
 
 <a name="quick-start"></a>
@@ -88,6 +89,7 @@ head(available[c("year", "source", "species_code", "gear_group", "unit")])
 | [r_spatial_all_years.R](examples/r_spatial_all_years.R) | 历史覆盖目录、RFMO 与 GFW 筛选示例 | 有全部年份结果则读取，否则从已有原始文件构建 |
 | [r_clean_merge.R](examples/r_clean_merge.R) | 全球与太平洋年度标准化、合并结果 | 从已有原始文件构建，不重新下载 |
 | [r_assessment_database.R](examples/r_assessment_database.R) | 评估覆盖表、模型结果、参考点、参数及趋势预览 | 仅读取并生成本地预览，不下载 |
+| [r_modelprep.R](examples/r_modelprep.R) | 分物种 CPUE / SDM 输入表、过滤日志、名义指数示意 | 没有结果时从已有原始文件构建，不下载 |
 
 ### ④ 查询公开资源评估结果
 
@@ -513,6 +515,7 @@ R 读取原始代码时可用 `read.csv(..., colClasses = "character", na.string
 | [pacific_catch.toml](templates/pacific_catch.toml) | 仅太平洋年度视图 |
 | [spatial_all_years.toml](templates/spatial_all_years.toml) | 全部可用年份空间处理，按年保存 |
 | [spatial_2024.toml](templates/spatial_2024.toml) | 单年空间模板，便于修改后试运行 |
+| [modelprep.toml](templates/modelprep.toml) | CPUE / SDM 前的标准化 catch-effort 分层（全部来源） |
 | [R/tuna_data.R](R/tuna_data.R) | R 函数签名、筛选参数与路径规则 |
 
 <details>

@@ -1,0 +1,12 @@
+# 模型前数据准备（CPUE 标准化 / SDM）：从已下载的原始快照构建标准化 catch-effort 分层，不触发下载。
+# python: tuna-data build-modelprep --config templates/modelprep.toml
+# R:      tuna_modelprep_build(config = file.path(repo, "templates", "modelprep.toml"))
+[modelprep]
+# 不写 products 时构建全部默认产品。同一 view_group 的替代视图（如 IATTC 围网按船旗 / 按作业类型）
+# 会分别保存；分析时每个来源只能选其中一个。
+# products = ["iattc_ll", "iattc_ps_settype", "wcpfc_ll", "wcpfc_ps", "iotc_ce", "iotc_ce_ps_school", "iccat_t2ce", "ccsbt_ll"]
+# years = [1950, 2025]
+
+# 不写则使用库中当前版本；每次构建在 recipe.lock.toml 中固定实际版本。
+[versions]
+# "wcpfc/827" = "完整64位SHA256"

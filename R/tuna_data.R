@@ -120,3 +120,64 @@ tuna_spatial <- function(table = "global_catch_cells", run = NULL, path = NULL,
 tuna_spatial_catalog <- function(run = NULL, path = NULL) {
   tuna_spatial("coverage", run = run, path = path)
 }
+
+# ---- Model preparation: CPUE standardization and SDM inputs ----------------
+# Public aggregated catch-effort only. Build once, then read species tables.
+# Each table carries attr(x, "filter_log"): rows before/after every rule.
+.tuna_modelprep <- function() reticulate::import("tuna_data.modelprep", convert = TRUE)
+.tuna_list <- function(x) if (is.null(x)) NULL else as.list(x)
+.tuna_with_log <- function(result) {
+  data <- result[[1L]]
+  attr(data, "filter_log") <- result[[2L]]
+  data
+}
+
+tuna_modelprep_build <- function(config = NULL, path = NULL, output = NULL) {
+  db <- tuna_library(path)
+  .tuna_modelprep()$build_modelprep(config = config, library = db, output = output)
+}
+
+# Stocks, default units and cited notes for one species (or all).
+tuna_species_rules <- function(species = NULL) .tuna_modelprep()$rules_table(species)
+
+tuna_cpue_data <- function(species, gear = "longline", stock = NULL, years = NULL, months = NULL,
+                           fleets = NULL, exclude_fleets = NULL, products = NULL, zeros = "reported",
+                           catch_unit = NULL, effort_unit = NULL, time_resolution = NULL,
+                           max_cell_degrees = 5, school_types = NULL, apply_exclusions = TRUE,
+                           allow_unrecommended = FALSE, composition = FALSE, run = NULL, path = NULL) {
+  db <- tuna_library(path)
+  .tuna_with_log(.tuna_modelprep()$cpue_table(
+    species, gear, stock = .tuna_list(stock), products = .tuna_list(products), years = .tuna_list(years),
+    months = .tuna_list(months), fleets = .tuna_list(fleets), exclude_fleets = .tuna_list(exclude_fleets),
+    catch_unit = catch_unit, effort_unit = effort_unit, zeros = zeros,
+    time_resolution = .tuna_list(time_resolution), max_cell_degrees = max_cell_degrees,
+    school_types = .tuna_list(school_types), apply_exclusions = apply_exclusions,
+    allow_unrecommended = allow_unrecommended, composition = composition, run = run, library = db,
+    return_log = TRUE))
+}
+
+tuna_sdm_data <- function(species, gear = NULL, stock = NULL, years = NULL, months = NULL,
+                          fleets = NULL, exclude_fleets = NULL, products = NULL, zeros = "reported",
+                          time_resolution = NULL, max_cell_degrees = 5, grid = NULL, period = NULL,
+                          apply_exclusions = TRUE, allow_unrecommended = FALSE, gfw = FALSE,
+                          gfw_missing = "raise", run = NULL, path = NULL) {
+  db <- tuna_library(path)
+  .tuna_with_log(.tuna_modelprep()$sdm_table(
+    species, gear, stock = .tuna_list(stock), products = .tuna_list(products), years = .tuna_list(years),
+    months = .tuna_list(months), fleets = .tuna_list(fleets), exclude_fleets = .tuna_list(exclude_fleets),
+    zeros = zeros, time_resolution = .tuna_list(time_resolution), max_cell_degrees = max_cell_degrees,
+    grid = grid, period = period, apply_exclusions = apply_exclusions,
+    allow_unrecommended = allow_unrecommended, gfw = gfw, gfw_missing = gfw_missing,
+    run = run, library = db, return_log = TRUE))
+}
+
+# Raw canonical tables: "strata", "effort", "catch", "products", "status_counts", "adapter_qc".
+tuna_modelprep <- function(table = "strata", run = NULL, path = NULL, product = NULL, year = NULL,
+                           species = NULL, columns = NULL) {
+  db <- tuna_library(path)
+  .tuna_modelprep()$read_modelprep(table, run = run, library = db, product = .tuna_list(product),
+                                   year = .tuna_list(year), species = .tuna_list(species),
+                                   columns = .tuna_list(columns))
+}
+
+tuna_filter_log <- function(x) attr(x, "filter_log")

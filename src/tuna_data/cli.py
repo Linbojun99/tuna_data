@@ -23,6 +23,11 @@ def main(argv=None):
     p = sub.add_parser("build-spatial")
     p.add_argument("--config", help="Spatial recipe TOML; default 2024, seven tuna species and five GFW regions")
     p.add_argument("--output", help="Output parent directory; default <library>/processed/spatial")
+    p = sub.add_parser("build-modelprep", help="Build canonical catch-effort strata for CPUE/SDM preparation")
+    p.add_argument("--config", help="Model-prep recipe TOML; default builds every default product")
+    p.add_argument("--output", help="Output parent directory; default <library>/processed/modelprep")
+    p = sub.add_parser("species-rules", help="Print stock, unit and exclusion rules used for CPUE/SDM preparation")
+    p.add_argument("--species")
     p = sub.add_parser("assessment-sync", help="Download only declared public assessment sources to a local-only vault")
     p.add_argument("--config", required=True, help="Public assessment recipe JSON")
     p.add_argument("--cache", help="Local-only source vault, outside Drive/NAS library")
@@ -87,6 +92,14 @@ def main(argv=None):
         elif args.command == "build-spatial":
             from .spatial import build_spatial
             print(json.dumps(build_spatial(args.config, library=lib, output=args.output), ensure_ascii=False, indent=2))
+        elif args.command == "build-modelprep":
+            from .modelprep import build_modelprep
+            result = build_modelprep(args.config, library=lib, output=args.output,
+                                     progress=lambda message: print(message, file=sys.stderr))
+            print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        elif args.command == "species-rules":
+            from .modelprep import rules_table
+            print(rules_table(args.species).to_json(orient="records", force_ascii=False, indent=2))
         elif args.command.startswith("assessment-"):
             from . import assessment as a
             if args.command == "assessment-sync":
